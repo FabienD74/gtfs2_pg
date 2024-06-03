@@ -102,7 +102,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return    
 
         sched = pygtfs.Schedule("postgresql://gtfs:gtfs@vm-hadb-tst.home/gtfs")
-        return pygtfs.append_feed(sched, "/config/gtfs2_pg_import/TEC-GTFS.zip")
+        return pygtfs.append_feed(sched, "/config/gtfs2_pg_import/TEC-GTFS.zip", chunk_size=500)
         
 
 
@@ -676,6 +676,9 @@ class GTFS_pg_OptionsFlowHandler(config_entries.OptionsFlow):
     ) -> FlowResult:
         """Manage the options."""
         errors: dict[str, str] = {}
+
+        ############################
+        ############################
         if user_input is not None:
 
             match self.config_entry.data.get("sensor_type", None):
@@ -704,10 +707,6 @@ class GTFS_pg_OptionsFlowHandler(config_entries.OptionsFlow):
                     param_user_input["refresh_max_seconds"] = user_input["refresh_max_seconds"]
                     param_user_input["offset"] = user_input["offset"]
                     param_user_input[CONF_TIMERANGE] = user_input[CONF_TIMERANGE]
-#                    _LOGGER.debug(f"Call to async_create_entry :data ={param_user_input}")
-#                    is_ok = self.async_create_entry(title="", data=param_user_input)
-#                    _LOGGER.debug(f"is_ok ={is_ok}")
-
                     self.hass.config_entries.async_update_entry(
                         self.config_entry, data=param_user_input, options={}
                     )
@@ -715,13 +714,12 @@ class GTFS_pg_OptionsFlowHandler(config_entries.OptionsFlow):
 
 
                 case _:
-                    _LOGGER.debug(f"Sensor unknown")
+                    return self.async_abort(reason=f"Sensor type {self.config_entry.data.get("sensor_type", None)} UNKNOWN")
 
 
+        # end if user_input is not None:
+        ############################
 
-
-
-#                param_user_input["sensor_type"] = "sensor_1"
         _LOGGER.debug(f"Sensor type:  {self.config_entry.data.get("sensor_type", None)}")
 
         match self.config_entry.data.get("sensor_type", None):
@@ -736,22 +734,23 @@ class GTFS_pg_OptionsFlowHandler(config_entries.OptionsFlow):
 
                 datasources = get_configured_db_connections(self.engine) 
 
-                keys=[]
+                current_db_id = self.config_entry.data.get("db_id","-1")
                 descriptions=[]
-                # split datasources in 2 tables : keys and description
+                default_db_selected = ""
+                # Create all entries for Radiobuttons, and catch the current db_id ( used as default)
                 for line in datasources:
-                    keys.append ( line['db_id'] )  
-                    descriptions.append ( f"[{line['db_id']}] - {line['db_conn_str']} ({line['db_status']})" )
+                    option_line = f"[{line['db_id']}] - {line['db_conn_str']} ({line['db_status']})" 
+                    descriptions.append (option_line )
+                    if ( int(line["db_id"]) ==  int (current_db_id) ): 
+                        default_db_selected = option_line
 
-                tmp_radius = self.config_entry.data.get("radius",99)
-
-                _LOGGER.debug(f"radius =  {tmp_radius}")
+                _LOGGER.debug(f"current_db_id = {current_db_id}  default radio set to={default_db_selected}")
 
 
                 opt1_schema = (
                     {
                         vol.Required(CONF_NAME, default=self.config_entry.data.get("name","")): str, 
-                        vol.Required("db_selected", default=""): vol.In(descriptions),
+                        vol.Required("db_selected", default=default_db_selected): vol.In(descriptions),
                         vol.Required(CONF_DEVICE_TRACKER_ID, default=self.config_entry.data.get("device_tracker_id","")): selector.EntitySelector(
                             selector.EntitySelectorConfig(domain=["person","zone"]),                          
                         ),
