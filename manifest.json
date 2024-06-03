@@ -1,0 +1,14 @@
+{
+  "domain": "gtfs2_pg",
+  "name": "GTFS 2 for postgreSQL",
+  "codeowners": ["@vingerha"],
+  "config_flow": true,
+  "dependencies": [
+    "zone", "person"
+  ],
+  "documentation": "https://github.com/vingerha/gtfs2/wiki",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/vingerha/gtfs2/issues",
+  "requirements": ["sqlalchemy_utils", "pygtfs==0.1.9","gtfs-realtime-bindings==1.0.0","protobuf"],
+  "version": "0.1"
+}
