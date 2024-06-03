@@ -1,6 +1,5 @@
 # gtfs2_pg
 
-<<<<<<< HEAD
 This version is an attempt to modify GFTS2 ( link: https://github.com/vingerha/gtfs2/ )  to support Postgresql and test some features here and there....
 
 Not stable, changed everyday, adding feature, changing code,...
