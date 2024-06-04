@@ -16,7 +16,7 @@ import homeassistant.util.dt as dt_util
 
 from .const import *
 
-from .gtfs2_pg_helper import *
+#from .gtfs2_pg_helper import *
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -48,12 +48,12 @@ class gtfs2_pg_Coordinator_Master(DataUpdateCoordinator):
 #        self.engine = sqlalchemy.create_engine(MASTER_CONN_STR, echo=True)
         conn = self.master_engine.connect()
 
-        res = conn.execute(text("SELECT name FROM sqlite_master WHERE name='db_config'"))
+        res = conn.execute(sqlalchemy.sql.text("SELECT name FROM sqlite_master WHERE name='db_config'"))
         if res.fetchone() is None:
             _LOGGER.debug("gtfs2_pg_Coordinator_Master.__init__  create table ")          
 
-            sql = text("CREATE TABLE db_config (db_id INTEGER PRIMARY KEY, db_conn_str TEXT NOT NULL, db_status TEXT NOT NULL,db_message TEXT NOT NULL)")     
-            res = conn.execute(sql)
+            sql = "CREATE TABLE db_config (db_id INTEGER PRIMARY KEY, db_conn_str TEXT NOT NULL, db_status TEXT NOT NULL,db_message TEXT NOT NULL)"     
+            res = conn.execute(sqlalchemy.sql.text(sql))
             conn.commit()
             
         _LOGGER.debug("gtfs2_pg_Coordinator_Master;__init__  END")  
@@ -101,7 +101,7 @@ class gtfs2_pg_Coordinator_Sensor(DataUpdateCoordinator):
 
         try:
             db_sql = f"select * from db_config where db_id = {entry.data.get('db_id',0)}"
-            db_res = db_conn_master.execute(text(db_sql))
+            db_res = db_conn_master.execute(sqlalchemy.sql.text(db_sql))
             for row_cursor in db_res:
                 row = row_cursor._asdict()
                 db_conn_str = row.get('db_conn_str', '') 

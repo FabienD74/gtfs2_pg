@@ -11,7 +11,7 @@ from .const import DOMAIN, PLATFORMS, DEFAULT_PATH, DEFAULT_PATH_RT, DEFAULT_REF
 from homeassistant.const import CONF_HOST
 
 import voluptuous as vol
-from .gtfs2_pg_helper import *
+#from .gtfs2_pg_helper import *
 from .coordinator import * 
 
 _LOGGER = logging.getLogger(__name__)
@@ -186,37 +186,7 @@ async def update_listener(hass: HomeAssistant, entry: ConfigEntry):
 async def async_setup(hass: HomeAssistant, config: dict):
 #    _LOGGER.debug(f"__init__.py async_setup: hass={hass} entry={config}")
     _LOGGER.debug(f"__init__.py async_setup:")
-
     hass.data.setdefault(DOMAIN,{})
     hass.data[DOMAIN]["config_yaml"] = config.get(DOMAIN) or {}
     return True
 
-    if DOMAIN not in config:
-        _LOGGER.debug(f"DOMAIN NOT IN CONFIG")
-        return True
-    else:
-        _LOGGER.debug(f"__init__.py async_setup: yaml_config={config[DOMAIN]}")
-#        hass.data[DOMAIN]["yaml_config"] = config[DOMAIN]
-        return True
-
-
-#    hass.data[DOMAIN] = {}
-
-#    component = EntityComponent(_LOGGER, DOMAIN, hass)
-#    await _async_process_config(hass, config, component)
-
-#    async def reload_service_handler(service_call):
-#        if (conf := await component.async_prepare_reload()) is None:
-#            return
-#        await _async_process_config(hass, conf, component)
-#        hass.bus.async_fire(SIGNAL_STATE_UPDATED, context=service_call.context)
-
-#    reload_helper = ReloadServiceHelper(reload_service_handler)
-
-#    async_register_admin_service(
-#        hass,
-#        DOMAIN,
-#        SERVICE_RELOAD,
-#        reload_helper.execute_service,
-#        schema=vol.Schema({}),
- #   )    

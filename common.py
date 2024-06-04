@@ -58,3 +58,22 @@ def get_configured_db_connections(db_engine) -> dict[str]:
     db_conn.close()
     return db_list
 
+##########################################################
+def check_db_conn(conn_str):
+
+    import sqlalchemy_utils
+#        assert not sqlalchemy_utils.database_exists(db_url)
+
+
+    _LOGGER.debug("check_db_conn: %s", conn_str)
+
+    db_exist = sqlalchemy_utils.database_exists (conn_str)
+    if not db_exist:
+        return "Database Not Found or Connection Error"
+    else:
+        return ""
+    return None         
+
+
+
+

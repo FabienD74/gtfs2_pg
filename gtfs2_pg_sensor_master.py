@@ -78,8 +78,8 @@ class gtfs2_pg_sensor_master(CoordinatorEntity, SensorEntity):
         db_res = None
         try:
             db_conn = self.coordinator.master_engine.connect()
-            db_sql = text("select count (*) from db_config")
-            db_res = db_conn.execute(db_sql)
+            db_sql = "select count (*) from db_config"
+            db_res = db_conn.execute(sqlalchemy.sql.text(db_sql))
         except SQLAlchemyError as e:
             self._state = "Error with select count *"
 

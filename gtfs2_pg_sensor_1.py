@@ -77,11 +77,9 @@ def next_departures_sqlite(self,engine):
     tomorrow_calendar_date_where = f"AND (calendar_date_today.date = date(:now_offset))"
 
     timerange = self._data.get("timerange", DEFAULT_LOCAL_STOP_TIMERANGE)
-    timerange = 120
 
     time_range = str('+' + str( timerange) + ' minute')
     time_range_history = str('-' + str(self._data.get("timerange_history", DEFAULT_LOCAL_STOP_TIMERANGE_HISTORY)) + ' minute')
-#    radius = self._data.get(CONF_RADIUS, DEFAULT_LOCAL_STOP_RADIUS) / 1111111
 
     radius = ( 360 * self._data.get(CONF_RADIUS, DEFAULT_LOCAL_STOP_RADIUS) ) / ( 40000 * 1000 )
 
@@ -151,7 +149,7 @@ def next_departures_sqlite(self,engine):
         """  # noqa: S608
     db_connection = engine.connect()
     result = db_connection.execute(
-        text(sql_query),
+        sqlalchemy.sql.text(sql_query),
         {
             "latitude": latitude,
             "longitude": longitude,
@@ -267,7 +265,7 @@ def get_feed_id(gtfs_conn):
         SELECT * FROM _feed
     """  # noqa: S608
     sql_result = gtfs_conn.execute(
-        text(sql_query),
+        sqlalchemy.sql.text(sql_query),
         {
 
         },
@@ -315,7 +313,7 @@ def get_end_stop_of_trip(gtfs_conn, feed_id, trip_id, direction_id):
 
 
     sql_result = gtfs_conn.execute(
-        text(sql_query),
+        sqlalchemy.sql.text(sql_query),
         {
             "feed_id" : feed_id,
             "trip_id":  trip_id,
@@ -385,7 +383,7 @@ def get_stops_arround_gps(gtfs_conn, feed_id , longitude, latitude,radius):
             order by stop.stop_id asc
     """  # noqa: S608
     sql_result = gtfs_conn.execute(
-        text(sql_query),
+        sqlalchemy.sql.text(sql_query),
         {
             "feed_id" : feed_id,
         },
@@ -481,7 +479,7 @@ def next_departures_postgresql_single_day (gtfs_conn , feed_id, p_date, dayname,
         """  # noqa: S608
 
     result = gtfs_conn.execute(
-        text(sql_query),
+        sqlalchemy.sql.text(sql_query),
         {
             "feed_id"    : feed_id,
             "p_date": p_date,
@@ -887,11 +885,10 @@ def next_departures_postgresql(engine,
 
 
     data_returned = local_stops_list   
-    size_returned = sys.getsizeof(data_returned, -1)
     stop_timer = get_now_utc()
     elapsed = stop_timer - start_timer
 
-    _LOGGER.info("next_departures_postgresql END: In %dms Processed %d stops %d departures. Returned %d departures:, Returned %d bytes", elapsed / dt.timedelta(milliseconds=1), count_row_stop, count_sql_rows_result, departures_returned, size_returned )
+    _LOGGER.info("next_departures_postgresql END: In %dms Processed %d stops %d departures. Returned %d departures", elapsed / dt.timedelta(milliseconds=1), count_row_stop, count_sql_rows_result, departures_returned )
 
     #close connection to the DB..
     gtfs_conn.close()
