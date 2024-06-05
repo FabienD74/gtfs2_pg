@@ -262,7 +262,7 @@ def next_departures_sqlite(self,engine):
 ####################################################################
 def get_feed_id(gtfs_conn):
     sql_query = f"""
-        SELECT * FROM _feed
+        SELECT max (feed_id) ad feed_id FROM _feed
     """  # noqa: S608
     sql_result = gtfs_conn.execute(
         sqlalchemy.sql.text(sql_query),
@@ -1001,12 +1001,16 @@ class gtfs2_pg_sensor_1(CoordinatorEntity, SensorEntity):
             EVENT_HOMEASSISTANT_STARTED, self.home_assistant_started
         )
 
-        engine  = self.coordinator.gtfs_engine
-        gtfs_conn = engine.connect()
-        row_feed = get_feed_id(gtfs_conn)
-        gtfs_conn.close()
 
-        self.feed_id =  row_feed["feed_id"]
+        self.feed_id = coordinator.entry.data.get("feed_id", None)
+
+        if self.feed_id == None:
+            engine  = self.coordinator.gtfs_engine
+            gtfs_conn = engine.connect()
+            row_feed = get_feed_id(gtfs_conn)
+            gtfs_conn.close()
+
+            self.feed_id =  row_feed["feed_id"]
 
     ###########################
     def get_yaml_parameter (self, param_name):

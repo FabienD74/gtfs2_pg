@@ -32,6 +32,157 @@ from .common import *
 _LOGGER = logging.getLogger(__name__)
 
 
+####################################################################
+def create_db_master(db_conn):
+    # i don't think we need to do anysthing, SQLITE will create the 
+    # DB by itselt...
+    _LOGGER.debug(f"create_db_master")
+
+    return
+####################################################################
+def create_table_db_config(db_conn):
+    _LOGGER.debug(f"create_table_db_config")
+
+# examples of connection string:
+#    postgresql://gtfs:gtfs@vm-hadb-tst.home/gtfs
+#    sqlite:///gtfs2/TEC-GTFS.sqlite
+
+    sql_query = f"""
+        CREATE TABLE IF NOT EXISTS db_config (
+            db_id        INTEGER   PRIMARY KEY,
+            db_conn_str  TEXT      NOT NULL,
+            db_status    TEXT      NOT NULL,
+            db_message   TEXT      NOT NULL
+        ) WITHOUT ROWID;
+            
+        """  # noqa: S608
+
+    result = db_conn.execute(sqlalchemy.sql.text(sql_query))
+    db_conn.commit()
+    return
+
+####################################################################
+def create_table_feed(db_conn):
+    _LOGGER.debug(f"create_table_feed")
+
+    # this table will contains all tables "feed" from all db
+    sql_query = f"""
+        CREATE TABLE IF NOT EXISTS feed (
+            db_id        INTEGER,
+            feed_id      INTEGER,
+            feed_name    TEXT,
+            feed_append_date  date,
+            
+            PRIMARY KEY (db_id, feed_id)
+        ) WITHOUT ROWID;
+            
+        """  # noqa: S608
+
+    result = None
+    try:
+        result = db_conn.execute(sqlalchemy.sql.text(sql_query))
+        db_conn.commit()
+    except SQLAlchemyError as e:
+        _LOGGER.debug(f"create_table_feed SQL ERROR: {e}")
+
+    return
+
+####################################################################
+def update_table_feed(db_conn, feeds):
+
+    _LOGGER.debug(f" update_table_feed feeds = {feeds}")
+
+
+    sql_query = f"""
+        delete from feed;
+        """  # noqa: S608
+
+    result = db_conn.execute(sqlalchemy.sql.text(sql_query))
+    
+    sql_query = f"""
+        insert or replace into feed (db_id, feed_id, feed_name, feed_append_date) values
+        (:db_id, :feed_id, :feed_name, :feed_append_date);
+
+        """  # noqa: S608
+    try:
+        for row_feed in feeds:
+            _LOGGER.debug(f" => found feed: {row_feed} )")
+
+            result = db_conn.execute(
+                sqlalchemy.sql.text(sql_query),
+                {
+                    "db_id"       : row_feed["db_id"],
+                    "feed_id"     : row_feed["feed_id"],
+                    "feed_name"   : row_feed["feed_name"],
+                    "feed_append_date" : row_feed["feed_append_date"],
+                },
+            )
+
+        db_conn.commit()
+
+    except SQLAlchemyError as e:
+        _LOGGER.debug(f"create_table_feed SQL ERROR: {e}")
+
+    return    
+
+
+
+####################################################################
+def get_all_feed_data (db_conn):
+    # this table will contains all tables "feed" from all db
+    sql_query = f"""
+        select * from _feed 
+            
+        """  # noqa: S608
+
+    result = db_conn.execute(sqlalchemy.sql.text(sql_query))
+    
+    result_data = []
+    for row_cursor in result:
+        row = row_cursor._asdict()
+        result_data.append (row)
+    return result_data
+
+####################################################################
+def get_all_feeds_from_all_db (db_conn): 
+    sql_query = f"""
+        select * from db_config   
+
+            
+        """  # noqa: S608
+
+    result = db_conn.execute(sqlalchemy.sql.text(sql_query))
+
+    result_data = []
+    for row_cursor in result:
+        row = row_cursor._asdict()
+        result_data.append (row)
+
+
+    all_feeds = []
+
+    for row_data in result_data:
+        _LOGGER.debug(f"get_all_feeds_from_all_db db_id:{row_data["db_id"]} ({row_data["db_conn_str"]})")
+
+        gtfs_engine = sqlalchemy.create_engine(row_data["db_conn_str"], echo=False)
+        db_conn_gtfs = gtfs_engine.connect()
+        feeds= get_all_feed_data (db_conn_gtfs)
+        db_conn_gtfs.close()
+        for row_feed in feeds:
+            _LOGGER.debug(f" => found feed: {row_feed["feed_id"]} = {row_feed["feed_name"]} ({row_feed["feed_append_date"]} )")
+            row_all_feeds ={}
+            row_all_feeds["db_id"]            = row_data["db_id"]
+            row_all_feeds["db_conn_str"]      = row_data["db_conn_str"]
+            row_all_feeds["feed_id"]          = row_feed["feed_id"]
+            row_all_feeds["feed_name"]        = row_feed["feed_name"]
+            row_all_feeds["feed_append_date"] = row_feed["feed_append_date"]
+
+            _LOGGER.debug(f"all_feeds.append ( row_all_feeds)=  {row_all_feeds}")
+
+            all_feeds.append ( row_all_feeds) 
+
+
+    return all_feeds
 
 
 ########################################################
@@ -75,13 +226,20 @@ class gtfs2_pg_sensor_master(CoordinatorEntity, SensorEntity):
         self._state: str | None = None
         self._state = "Initialized"
 
+
+
         db_res = None
         try:
             db_conn = self.coordinator.master_engine.connect()
-            db_sql = "select count (*) from db_config"
-            db_res = db_conn.execute(sqlalchemy.sql.text(db_sql))
+            create_db_master(db_conn)
+            create_table_db_config(db_conn)
+            create_table_feed(db_conn)
+            db_conn.close()
         except SQLAlchemyError as e:
-            self._state = "Error with select count *"
+            self._state = "SQL ERROR in gtfs2_pg_sensor_master.__init__"
+            _LOGGER.debug(f"gtfs2_pg_sensor_master.home_assistant_started: BEGIN")
+
+        
 
         self._attr_native_value = self._state
         self._attributes["updated_at"] = get_now_utc_iso_to_str()
@@ -108,13 +266,30 @@ class gtfs2_pg_sensor_master(CoordinatorEntity, SensorEntity):
     def _update_attrs(self, p_force_update = False , p_called_by = "Unknown", p_longitude = -1, p_latitude = -1):  # noqa: C901 PLR0911
 #        _LOGGER.debug("gtfs2_pg_sensor_master._update_attrs (called by= %s) ", p_called_by)
 
-        if self._state == "Initialized":
-            delta = get_now_utc()- get_utc_iso_str_to_datetime( self._attributes["updated_at"] )
+        db_conn = self.coordinator.master_engine.connect()
 
-            self._attributes["updated_at"] = get_now_utc_iso_to_str()
-            self._state = "Updated"
-            self._attr_native_value = self._state        
-            self._attr_extra_state_attributes = self._attributes
+        all_feeds = []
 
-            super()._handle_coordinator_update()
+        try:
+            all_feeds = get_all_feeds_from_all_db (db_conn)
+
+#            create_db_master(db_conn)
+#            create_table_db_config(db_conn)
+#            create_table_feed(db_conn)
+            update_table_feed(db_conn,all_feeds  )  
+            db_conn.close()
+        except SQLAlchemyError as e:
+            self._state = "SQL ERROR in gtfs2_pg_sensor_master.__init__"
+            _LOGGER.debug(f"gtfs2_pg_sensor_master.home_assistant_started: BEGIN")
+
+
+
+        self._attributes["updated_at"] = get_now_utc_iso_to_str()
+        self._attributes["all_feeds"] = all_feeds
+
+        self._state = "Updated"
+        self._attr_native_value = self._state        
+        self._attr_extra_state_attributes = self._attributes
+
+        super()._handle_coordinator_update()
 

@@ -366,15 +366,19 @@ class GTFS_pg_OptionsFlowHandler(config_entries.OptionsFlow):
                 case "sensor_1":
                     _LOGGER.debug(f"Save values for Sensor1")
 
-                    line = user_input['db_selected']
-                    db_id = line.split('[', 1)[1].split(']')[0]
-                    _LOGGER.debug(f"selected : {db_id}")
+                    line = user_input['feed_selected']
+                    selected_key = line.split('[', 1)[1].split(']')[0]
+                    _LOGGER.debug(f"selected : {selected_key}")
 
+                    db_id =       selected_key.split('/')[0]
+                    feed_id =     selected_key.split('/')[1]
 
                     # update  sensor
                     param_user_input = {}
                     param_user_input["sensor_type"] = "sensor_1"
                     param_user_input["db_id"] = db_id
+                    param_user_input["feed_id"] = feed_id
+
                     param_user_input[CONF_NAME] = user_input[CONF_NAME]
                     param_user_input[CONF_DEVICE_TRACKER_ID] = user_input[CONF_DEVICE_TRACKER_ID]
                     param_user_input[CONF_RADIUS] = user_input[CONF_RADIUS]
@@ -407,26 +411,33 @@ class GTFS_pg_OptionsFlowHandler(config_entries.OptionsFlow):
             case "sensor_1":
                 _LOGGER.debug(f"Sensor1")
                 _LOGGER.debug(f"data = {self.config_entry.data}")
-
-                datasources = get_configured_db_connections(self.engine) 
+                
+                db_conn = self.engine.connect()                
+                datasources = get_all_feeds_from_all_db(db_conn) 
+                db_conn.close()
 
                 current_db_id = self.config_entry.data.get("db_id","-1")
+                current_feed_id = self.config_entry.data.get("feed_id","-1")
+
                 descriptions=[]
-                default_db_selected = ""
+                feed_selected = ""
                 # Create all entries for Radiobuttons, and catch the current db_id ( used as default)
                 for line in datasources:
-                    option_line = f"[{line['db_id']}] - {line['db_conn_str']} ({line['db_status']})" 
+                    option_line = f"[{line['db_id']}/{line['feed_id']}] - {line['db_conn_str']} ({line['feed_name']}) ({line['feed_append_date']})" 
                     descriptions.append (option_line )
-                    if ( int(line["db_id"]) ==  int (current_db_id) ): 
-                        default_db_selected = option_line
+                    if ( int(line["db_id"]) ==  int (current_db_id) ) and ( int(line["feed_id"]) ==  int (current_feed_id) ) : 
+                        feed_selected = option_line
 
-                _LOGGER.debug(f"current_db_id = {current_db_id}  default radio set to={default_db_selected}")
+                if len (descriptions) == 0:
+                    option_line = "No data found ?"
+                    descriptions.append (option_line)
+
 
 
                 opt1_schema = (
                     {
                         vol.Required(CONF_NAME, default=self.config_entry.data.get("name","")): str, 
-                        vol.Required("db_selected", default=default_db_selected): vol.In(descriptions),
+                        vol.Required("feed_selected", default=feed_selected): vol.In(descriptions),
                         vol.Required(CONF_DEVICE_TRACKER_ID, default=self.config_entry.data.get("device_tracker_id","")): selector.EntitySelector(
                             selector.EntitySelectorConfig(domain=["person","zone"]),                          
                         ),

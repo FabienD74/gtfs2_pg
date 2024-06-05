@@ -1,4 +1,3 @@
-
 ########################################################
 ########################################################
 #     C O M M O N   F U N C T I O N S 
@@ -47,7 +46,7 @@ def get_configured_db_connections(db_engine) -> dict[str]:
     try:
         db_conn = db_engine.connect()
         db_sql = f"select * from db_config "     
-        db_res = db_conn.execute(text(db_sql))
+        db_res = db_conn.execute(sqlalchemy.sql.text(db_sql))
         for row_cursor in db_res:
             row = row_cursor._asdict()
             db_list.append(row)
@@ -57,6 +56,66 @@ def get_configured_db_connections(db_engine) -> dict[str]:
         
     db_conn.close()
     return db_list
+
+
+########################################################
+def get_all_feeds_from_all_db(db_conn) -> dict[str]:
+    _LOGGER.debug(f"get_configured_db_connection")
+
+    # retreive list of configured DB connections from "master.db"
+    db_list = []
+    try:
+
+
+        sql_query = f"""
+            select *
+            from db_config 
+            """  # noqa: S608
+
+        db_res = db_conn.execute(sqlalchemy.sql.text(sql_query))
+        for row_cursor in db_res:
+            row = row_cursor._asdict()
+            _LOGGER.debug(f"db_config =  {row}")
+
+
+
+        sql_query = f"""
+            select *
+            from feed 
+            """  # noqa: S608
+
+        db_res = db_conn.execute(sqlalchemy.sql.text(sql_query))
+        for row_cursor in db_res:
+            row = row_cursor._asdict()
+            _LOGGER.debug(f"feed =  {row}")
+
+
+
+
+        sql_query = f"""
+            select db_config.db_id,  
+                db_config.db_conn_str ,
+                feed.feed_id, 
+                feed.feed_name,
+                feed_append_date 
+            from db_config 
+            INNER JOIN feed
+                    ON  feed.db_id = db_config.db_id                
+            """  # noqa: S608
+
+        db_res = db_conn.execute(sqlalchemy.sql.text(sql_query))
+        for row_cursor in db_res:
+            row = row_cursor._asdict()
+            _LOGGER.debug(f"get_all_feeds_from_all_db {row}")
+
+            db_list.append(row)
+
+    except SQLAlchemyError as e:
+        _LOGGER.debug(f"get_configured_db_connections(): {e}") 
+        
+    return db_list
+
+
 
 ##########################################################
 def check_db_conn(conn_str):
@@ -73,7 +132,3 @@ def check_db_conn(conn_str):
     else:
         return ""
     return None         
-
-
-
-
