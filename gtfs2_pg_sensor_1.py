@@ -93,7 +93,6 @@ def next_departures_sqlite(self,engine):
         tomorrow_select = f"calendar.{tomorrow_name} AS tomorrow,"
         tomorrow_calendar_date_where = f"AND (calendar_date_today.date = date(:now_offset) or calendar_date_today.date = date(:now_offset,'+1 day'))"
         tomorrow_select2 = f"CASE WHEN date(:now_offset) < calendar_date_today.date THEN '1' else '0' END as tomorrow,"        
-
     sql_query = f"""
         SELECT * FROM (
         SELECT stop.stop_id, stop.stop_name,stop.stop_lat as latitude, stop.stop_lon as longitude, trip.trip_id, trip.trip_headsign, trip.direction_id, time(st.departure_time) as departure_time,
@@ -116,7 +115,8 @@ def next_departures_sqlite(self,engine):
                    ON route.route_id = trip.route_id 
 		WHERE 
         trip.service_id not in (select service_id from calendar_dates where date = date(:now_offset) and exception_type = 2)
-        and  datetime(date(:now_offset) || ' ' || time(st.departure_time) ) between  datetime(:now_offset,:timerange_history) and  datetime(:now_offset,:timerange) 
+        and ((datetime(date(:now_offset) || ' ' || time(st.departure_time) ) between  datetime(:now_offset,:timerange_history) and  datetime(:now_offset,:timerange))
+        or (datetime(date(:now_offset,'+1 day') || ' ' || time(st.departure_time) ) between  datetime(:now_offset,:timerange_history) and  datetime(:now_offset,:timerange)))
         AND calendar.start_date <= date(:now_offset) 
         AND calendar.end_date >= date(:now_offset) 
         )
@@ -142,11 +142,15 @@ def next_departures_sqlite(self,engine):
 				   ON trip.service_id = calendar_date_today.service_id
 		WHERE 
         today_cd = 1
-        and  datetime(date(:now_offset) || ' ' || time(st.departure_time) ) between  datetime(:now_offset,:timerange_history) and  datetime(:now_offset,:timerange) 
-		{tomorrow_calendar_date_where}
+        and ((datetime(date(:now_offset) || ' ' || time(st.departure_time) ) between  datetime(:now_offset,:timerange_history) and  datetime(:now_offset,:timerange))
+        or (datetime(date(:now_offset,'+1 day') || ' ' || time(st.departure_time) ) between  datetime(:now_offset,:timerange_history) and  datetime(:now_offset,:timerange)))
+        {tomorrow_calendar_date_where}
         )
         order by stop_id, tomorrow, departure_time
         """  # noqa: S608
+
+
+
     db_connection = engine.connect()
     result = db_connection.execute(
         sqlalchemy.sql.text(sql_query),
@@ -984,6 +988,8 @@ class gtfs2_pg_sensor_1(CoordinatorEntity, SensorEntity):
         self._state = "Initialized"
             
 
+        self._attributes["feed_id"] =  coordinator.entry.data.get("feed_id", None)
+
         self._attributes["gtfs_updated_at"] = get_now_utc_iso_to_str()
         self._attributes[CONF_DEVICE_TRACKER_ID] = self._data.get(CONF_DEVICE_TRACKER_ID,None)
         self._attributes["offset"] = self._data.get('offset',None)
@@ -1000,7 +1006,6 @@ class gtfs2_pg_sensor_1(CoordinatorEntity, SensorEntity):
         self.hass.bus.async_listen_once(
             EVENT_HOMEASSISTANT_STARTED, self.home_assistant_started
         )
-
 
         self.feed_id = coordinator.entry.data.get("feed_id", None)
 
