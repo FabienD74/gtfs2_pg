@@ -25,55 +25,14 @@ from homeassistant.const import (
     EVENT_HOMEASSISTANT_STARTED,
 )
 
-from .const import (
-    ATTR_ARRIVAL,
-    ATTR_BICYCLE,
-    ATTR_DAY,
-    ATTR_DUE_IN,
-    ATTR_NEXT_RT,
-    ATTR_DROP_OFF_DESTINATION,
-    ATTR_DROP_OFF_ORIGIN,
-    ATTR_FIRST,
-    ATTR_RT_UPDATED_AT,
-    ATTR_INFO,
-    ATTR_INFO_RT,
-    ATTR_LAST,
-    ATTR_LOCATION_DESTINATION,
-    ATTR_LOCATION_ORIGIN,
-    ATTR_OFFSET,
-    ATTR_PICKUP_DESTINATION,
-    ATTR_PICKUP_ORIGIN,
-    ATTR_ROUTE_TYPE,
-    ATTR_TIMEPOINT_DESTINATION,
-    ATTR_TIMEPOINT_ORIGIN,
-    ATTR_WHEELCHAIR,
-    ATTR_WHEELCHAIR_DESTINATION,
-    ATTR_WHEELCHAIR_ORIGIN,
-    BICYCLE_ALLOWED_DEFAULT,
-    BICYCLE_ALLOWED_OPTIONS,
-    DEFAULT_NAME,
-    DOMAIN,
-    DROP_OFF_TYPE_DEFAULT,
-    DROP_OFF_TYPE_OPTIONS,
-    ICON,
-    ICONS,
-    LOCATION_TYPE_DEFAULT,
-    LOCATION_TYPE_OPTIONS,
-    PICKUP_TYPE_DEFAULT,
-    PICKUP_TYPE_OPTIONS,
-    ROUTE_TYPE_OPTIONS,
-    TIMEPOINT_DEFAULT,
-    TIMEPOINT_OPTIONS,
-    WHEELCHAIR_ACCESS_DEFAULT,
-    WHEELCHAIR_ACCESS_OPTIONS,
-    WHEELCHAIR_BOARDING_DEFAULT,
-    WHEELCHAIR_BOARDING_OPTIONS,
-)
+from .const import *
 
-#from .common import *
+
 from .coordinator import *
 from .gtfs2_pg_sensor_master import *
 from .gtfs2_pg_sensor_1 import *
+from .gtfs2_pg_sensor_2 import *
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -114,6 +73,22 @@ async def async_setup_entry(
 
                 sensors.append(
                     gtfs2_pg_sensor_1(
+                        hass = hass,
+                        config_entry = config_entry,
+                        coordinator = coordinator)
+                )
+                async_add_entities(sensors, False)
+
+
+            case "sensor_2":
+                sensors = []
+                coordinator: gtfs2_pg_Coordinator_Sensor = hass.data[DOMAIN][config_entry.entry_id][
+                "coordinator"
+                ]
+                await coordinator.async_config_entry_first_refresh()
+
+                sensors.append(
+                    gtfs2_pg_sensor_2(
                         hass = hass,
                         config_entry = config_entry,
                         coordinator = coordinator)

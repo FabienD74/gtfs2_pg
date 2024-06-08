@@ -19,8 +19,11 @@ from .common import *
 
 #from .config_flow_helper import *        
 
+from .gtfs2_pg_zip_import import *
 
+#from .schedule import *
 
+import os
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -77,7 +80,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_menu(
             step_id="user",
-            menu_options=["add_db_conn", "del_db_conn","list_db_conn", "sensor_1" ,"db_upload"],
+            menu_options=["add_db_conn", "del_db_conn","list_db_conn", "sensor_1" ,"sensor_2","del_feed","db_upload"],
             description_placeholders={
                 "model": "Example model",
             }
@@ -266,26 +269,91 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     ########################################################
     async def async_step_sensor_2(self, user_input: dict | None = None) -> FlowResult:
-        """Handle a flow initialized by the user."""
+        ############################
         errors: dict[str, str] = {}
-        if user_input is None:
-            datasources = get_datasources(self.hass, DEFAULT_PATH)
-            return self.async_show_form(
-                step_id="remove",
-                data_schema=vol.Schema(
-                    {
-                        vol.Required(CONF_FILE, default=""): vol.In(datasources),
-                    },
-                ),
-                errors=errors,
-            )
-        try:
-            removed = remove_datasource(self.hass, DEFAULT_PATH, user_input[CONF_FILE])
-            _LOGGER.debug(f"Removed gtfs data source: {removed}")
-        except Exception as ex:
-            _LOGGER.error("Error while deleting : %s", {ex})
-            return "generic_failure"
-        return self.async_abort(reason="files_deleted")
+        l_step_id = "sensor_2"
+
+        if user_input is not None:
+            # Validation and additional processing logic omitted for brevity.
+            # ...
+            if not errors:
+                line = user_input['feed_selected']
+                selected_key = line.split('[', 1)[1].split(']')[0]
+                _LOGGER.debug(f"selected : {selected_key}")
+
+                db_id =       selected_key.split('/')[0]
+                feed_id =     selected_key.split('/')[1]
+
+                # update  sensor
+                param_user_input = {}
+
+                param_user_input["sensor_type"] = "sensor_2"
+                param_user_input[CONF_NAME] = user_input[CONF_NAME]
+  
+                param_user_input["db_id"] = db_id
+                param_user_input["feed_id"] = feed_id
+
+                param_user_input["stop_regex1"] = user_input["stop_regex1"]
+                param_user_input["stop_regex2"] = user_input["stop_regex2"]
+                        
+                param_user_input["refresh_min_seconds"] = user_input["refresh_min_seconds"]
+                param_user_input["refresh_max_seconds"] = user_input["refresh_max_seconds"]
+                param_user_input["offset"] = user_input["offset"]
+                param_user_input[CONF_TIMERANGE] = user_input[CONF_TIMERANGE]
+
+                _LOGGER.debug(f"async_step_sensor_2 : create sensor with  data={param_user_input}") 
+                return self.async_create_entry( title=param_user_input[CONF_NAME], data=param_user_input )                
+
+
+        # end if user_input is not None:
+        ############################
+
+        _LOGGER.debug(f"Sensor1")
+ 
+        db_conn = self.engine.connect()                
+        datasources = get_all_feeds_from_all_db(db_conn) 
+        db_conn.close()
+
+        current_db_id = "-1"
+        current_feed_id = "-1"
+
+        descriptions=[]
+        feed_selected = ""
+        # Create all entries for Radiobuttons, and catch the current db_id ( used as default)
+        for line in datasources:
+            option_line = f"[{line['db_id']}/{line['feed_id']}] - {line['db_conn_str']} ({line['feed_name']}) ({line['feed_append_date']})" 
+            descriptions.append (option_line )
+            if ( int(line["db_id"]) ==  int (current_db_id) ) and ( int(line["feed_id"]) ==  int (current_feed_id) ) : 
+                feed_selected = option_line
+
+        if len (descriptions) == 0:
+            option_line = "No data found ?"
+            descriptions.append (option_line)
+
+
+
+        opt1_schema = (
+            {
+                vol.Required(CONF_NAME, default=""): str, 
+                vol.Required("feed_selected", default=feed_selected): vol.In(descriptions),
+                vol.Required("stop_regex1", default=""): str, 
+                vol.Required("stop_regex2", default=""): str, 
+
+                vol.Required("refresh_min_seconds", default=30):              vol.All(vol.Coerce(int), vol.Range(min=20, max=300)),
+                vol.Required("refresh_max_seconds", default=300):             vol.All(vol.Coerce(int), vol.Range(min=120, max=1200)),
+                vol.Required(CONF_OFFSET, default=0): int,
+                vol.Required(CONF_TIMERANGE, default=30):                     vol.All(vol.Coerce(int), vol.Range(min=5, max=600)),
+            }
+        )
+
+        return self.async_show_form(
+            step_id=l_step_id,
+            data_schema=vol.Schema(opt1_schema),
+            errors = errors
+        )
+
+                
+  
 
 
     ########################################################
@@ -315,18 +383,101 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     ########################################################
     async def async_step_db_upload(self, user_input: dict | None = None) -> FlowResult:
-        import pygtfs
 
         if os.fork() != 0:
             return    
+        else:
+            #import pygtfs
+            #sched = pygtfs.Schedule("postgresql://gtfs:gtfs@vm-hadb-tst.home/gtfs")
+            #return pygtfs.append_feed(sched, "/config/gtfs2_pg_import/TEC-GTFS.zip", chunk_size=500)
+    
+            self.engine = sqlalchemy.create_engine("postgresql://gtfs:gtfs@vm-hadb-tst.home/gtfs", echo=False)
 
-        sched = pygtfs.Schedule("postgresql://gtfs:gtfs@vm-hadb-tst.home/gtfs")
-        return pygtfs.append_feed(sched, "/config/gtfs2_pg_import/TEC-GTFS.zip", chunk_size=500)
-        
-
+            import_zip = gtfs2_pg_zip_import_postgres(
+                db_engine=self.engine ,
+                zip_file_name = "/config/gtfs2_pg_import/TEC-GTFS.zip", 
+                mode = "" )
+            import_zip.import_all_files_in_sequence()
 
     async def async_step_finish(self, user_input: dict | None = None) -> FlowResult:
         return 
+
+    ########################################################
+    async def async_step_del_feed(self, user_input: dict | None = None) -> FlowResult:
+        ############################
+        errors: dict[str, str] = {}
+        l_step_id = "del_feed"
+
+        if user_input is not None:
+            # Validation and additional processing logic omitted for brevity.
+            # ...
+            if not errors:
+                line = user_input['feed_selected']
+                selected_key = line.split('[', 1)[1].split(']')[0]
+                _LOGGER.debug(f"selected : {selected_key}")
+
+                db_id =       selected_key.split('/')[0]
+                feed_id =     selected_key.split('/')[1]
+
+                db_conn = self.engine.connect()                
+                datasources = get_all_feeds_from_all_db(db_conn) 
+                db_conn.close()
+                feed_selected = None
+                for line in datasources:
+                    if ( int(line["db_id"]) ==  int (db_id) ) and ( int(line["feed_id"]) ==  int (feed_id) ) : 
+                        feed_selected = line
+
+                if os.fork() != 0:
+                    return self.async_abort(reason="Feed deletion started")
+                else:                
+                    sched = Schedule(feed_selected["db_conn_str"])
+                    sched.sfdsfsdf( ) 
+                    sched.drop_feed(int(feed_id) )    
+                return self.async_abort(reason="Feed deletion started")
+
+
+        # end if user_input is not None:
+        ############################
+
+        _LOGGER.debug(f"Sensor1")
+ 
+        db_conn = self.engine.connect()                
+        datasources = get_all_feeds_from_all_db(db_conn) 
+        db_conn.close()
+
+        current_db_id = "-1"
+        current_feed_id = "-1"
+
+        descriptions=[]
+        feed_selected = ""
+        # Create all entries for Radiobuttons, and catch the current db_id ( used as default)
+        for line in datasources:
+            option_line = f"[{line['db_id']}/{line['feed_id']}] - {line['db_conn_str']} ({line['feed_name']}) ({line['feed_append_date']})" 
+            descriptions.append (option_line )
+            if ( int(line["db_id"]) ==  int (current_db_id) ) and ( int(line["feed_id"]) ==  int (current_feed_id) ) : 
+                feed_selected = option_line
+
+        if len (descriptions) == 0:
+            option_line = "No data found ?"
+            descriptions.append (option_line)
+
+
+
+        opt1_schema = (
+            {
+                vol.Required("feed_selected", default=feed_selected): vol.In(descriptions),
+            }
+        )
+
+        return self.async_show_form(
+            step_id=l_step_id,
+            data_schema=vol.Schema(opt1_schema),
+            errors = errors
+        )
+
+                
+
+
 
 
 ##########################################################
@@ -383,6 +534,36 @@ class GTFS_pg_OptionsFlowHandler(config_entries.OptionsFlow):
                     param_user_input[CONF_DEVICE_TRACKER_ID] = user_input[CONF_DEVICE_TRACKER_ID]
                     param_user_input[CONF_RADIUS] = user_input[CONF_RADIUS]
                     param_user_input["refresh_min_distance"] = user_input["refresh_min_distance"]
+                    param_user_input["refresh_min_seconds"] = user_input["refresh_min_seconds"]
+                    param_user_input["refresh_max_seconds"] = user_input["refresh_max_seconds"]
+                    param_user_input["offset"] = user_input["offset"]
+                    param_user_input[CONF_TIMERANGE] = user_input[CONF_TIMERANGE]
+                    self.hass.config_entries.async_update_entry(
+                        self.config_entry, data=param_user_input, options={}
+                    )
+                    return self.async_abort(reason="Data saved")
+
+
+
+                case "sensor_2":
+                    _LOGGER.debug(f"Save values for Sensor2")
+
+                    line = user_input['feed_selected']
+                    selected_key = line.split('[', 1)[1].split(']')[0]
+                    _LOGGER.debug(f"selected : {selected_key}")
+
+                    db_id =       selected_key.split('/')[0]
+                    feed_id =     selected_key.split('/')[1]
+
+                    # update  sensor
+                    param_user_input = {}
+                    param_user_input["sensor_type"] = "sensor_2"
+                    param_user_input["db_id"] = db_id
+                    param_user_input["feed_id"] = feed_id
+                    param_user_input[CONF_NAME]       = user_input[CONF_NAME]
+                    
+                    param_user_input["stop_regex1"]   = user_input["stop_regex1"] 
+                    param_user_input["stop_regex2"]   = user_input["stop_regex2"] 
                     param_user_input["refresh_min_seconds"] = user_input["refresh_min_seconds"]
                     param_user_input["refresh_max_seconds"] = user_input["refresh_max_seconds"]
                     param_user_input["offset"] = user_input["offset"]
@@ -454,16 +635,59 @@ class GTFS_pg_OptionsFlowHandler(config_entries.OptionsFlow):
                     step_id="init",
                     data_schema=vol.Schema(opt1_schema),
                     errors = errors
-                )                
+                )            
+
+
+
+            case "sensor_2":
+                _LOGGER.debug(f"Sensor2")
+                _LOGGER.debug(f"data = {self.config_entry.data}")
+                
+                db_conn = self.engine.connect()                
+                datasources = get_all_feeds_from_all_db(db_conn) 
+                db_conn.close()
+
+                current_db_id = self.config_entry.data.get("db_id","-1")
+                current_feed_id = self.config_entry.data.get("feed_id","-1")
+
+                descriptions=[]
+                feed_selected = ""
+                # Create all entries for Radiobuttons, and catch the current db_id ( used as default)
+                for line in datasources:
+                    option_line = f"[{line['db_id']}/{line['feed_id']}] - {line['db_conn_str']} ({line['feed_name']}) ({line['feed_append_date']})" 
+                    descriptions.append (option_line )
+                    if ( int(line["db_id"]) ==  int (current_db_id) ) and ( int(line["feed_id"]) ==  int (current_feed_id) ) : 
+                        feed_selected = option_line
+
+                if len (descriptions) == 0:
+                    option_line = "No data found ?"
+                    descriptions.append (option_line)
+
+
+
+                opt1_schema = (
+                    {
+                        vol.Required(CONF_NAME, default=self.config_entry.data.get("name","")): str, 
+                        vol.Required("feed_selected", default=feed_selected): vol.In(descriptions),
+
+                        vol.Required("stop_regex1", default=self.config_entry.data.get("stop_regex1","")): str, 
+                        vol.Required("stop_regex2", default=self.config_entry.data.get("stop_regex2","")): str, 
+
+                        vol.Required("refresh_min_seconds", default=self.config_entry.data.get("refresh_min_seconds",30)):              vol.All(vol.Coerce(int), vol.Range(min=20, max=300)),
+                        vol.Required("refresh_max_seconds", default=self.config_entry.data.get("refresh_max_seconds",300)):             vol.All(vol.Coerce(int), vol.Range(min=120, max=1200)),
+                        vol.Required(CONF_OFFSET, default=self.config_entry.data.get(CONF_OFFSET,0)): int,
+                        vol.Required(CONF_TIMERANGE, default=self.config_entry.data.get(CONF_TIMERANGE, DEFAULT_LOCAL_STOP_TIMERANGE)): vol.All(vol.Coerce(int), vol.Range(min=5, max=600)),
+                    }
+                )
+                return self.async_show_form(
+                    step_id="init",
+                    data_schema=vol.Schema(opt1_schema),
+                    errors = errors
+                )
+
+
             case _:
                 _LOGGER.debug(f"Sensor unknown")
-
-
-
-
-
-
-
 
 
 

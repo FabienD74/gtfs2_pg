@@ -36,43 +36,55 @@ from .common import *
 _LOGGER = logging.getLogger(__name__)
 
 
-from .gtfs2_pg_sensor_1_sqlite import *
-from .gtfs2_pg_sensor_1_postgres import *
+#from .gtfs2_pg_sensor_2_sqlite import *
+from .gtfs2_pg_sensor_2_postgres import *
 
 
 
 ####################################################################
 ####################################################################
 ####################################################################
-def gtfs2_pg_sensor_1_get_data(pself, engine_type, engine,feed_id, now_date, now_time, time_zone, longitude, latitude, radius, timerange,offset, caller_info = ""):
+
+def gtfs2_pg_sensor_2_get_data(
+    engine_type , 
+    engine      ,
+    feed_id     , 
+    now_date    ,
+    now_time    ,
+    time_zone   ,
+    stop_regex1 ,
+    stop_regex2 ,
+    timerange   ,
+    offset      ,
+    caller_info = ""):
+
     
     returned = None
 
     if engine_type == 'sqlite':
-        returned =  next_departures_sqlite(pself, engine = engine)
+ #       returned =  next_departures_sqlite(pself, engine = engine)
         return returned
 
     if engine_type == 'postgresql':
-        returned = next_departures_postgresql( 
-            engine    = engine, 
-            feed_id   = feed_id, 
-            now_date  = now_date, 
-            now_time  = now_time,
-            time_zone = time_zone, 
-            longitude = longitude , 
-            latitude  = latitude, 
-            radius    = radius, 
-            timerange = timerange,
-            offset    = offset,
+        returned = sensor_2_next_departures_postgresql( 
+            engine      = engine,
+            feed_id     = feed_id, 
+            now_date    = now_date,
+            now_time    = now_time,
+            time_zone   = time_zone,
+            stop_regex1 = stop_regex1,
+            stop_regex2 = stop_regex2,
+            timerange   = timerange,
+            offset      = offset,
             caller_info = caller_info)
-            
+
         return returned
 
 
 ####################################################################
 ####################################################################
 ####################################################################
-class gtfs2_pg_sensor_1(CoordinatorEntity, SensorEntity):
+class gtfs2_pg_sensor_2(CoordinatorEntity, SensorEntity):
 
     """Implementation of a GTFS local stops departures sensor."""
 
@@ -108,11 +120,6 @@ class gtfs2_pg_sensor_1(CoordinatorEntity, SensorEntity):
         _LOGGER.debug(f"feed_id={feed_id}")
 
 
-        self._previous_longitude = -1
-        self._previous_latitude = -1 
-        self._longitude = -1
-        self._latitude = -1 
-        self._distance = -1 
         self._db_id = db_id
         self._feed_id = feed_id
 
@@ -135,24 +142,19 @@ class gtfs2_pg_sensor_1(CoordinatorEntity, SensorEntity):
         self._state: str | None = None
         self._state = "Initialized"
             
-        self._attributes["db_id"]   =  self._db_id
-        self._attributes["feed_id"] =  self._feed_id
-
+        self._attributes["db_id"]         =  self._db_id
+        self._attributes["feed_id"]       =  self._feed_id
         self._attributes["gtfs_updated_at"] = get_now_utc_iso_to_str()
-        self._attributes[CONF_DEVICE_TRACKER_ID] = self._data.get(CONF_DEVICE_TRACKER_ID,None)
-        self._attributes["offset"] = self._data.get('offset',None)
-        self._attributes["latitude"] = self._latitude
-        self._attributes["longitude"] = self._longitude
-        self._attributes["movement_meters"] = self._distance
+        self._attributes["stop_regex1"]   = coordinator.entry.data.get("stop_regex1", "Unknown")
+        self._attributes["stop_regex2"]   = coordinator.entry.data.get("stop_regex2", "Unknown")
+        self._attributes["offset"]        = self._data.get('offset',None)
         self._attributes[CONF_TIMERANGE] = coordinator.data.get(CONF_TIMERANGE, 60)
 
-        self._attributes["stops"] = []
+        self._attributes["stops"]         = []
 
         self._attr_native_value = self._state
 
-        async_track_state_change_event(
-            self.hass, self.config_entry.data.get(CONF_DEVICE_TRACKER_ID,None), self.device_tracker_state_listener
-        )
+
         self.hass.bus.async_listen_once(
             EVENT_HOMEASSISTANT_STARTED, self.home_assistant_started
         )
@@ -222,22 +224,6 @@ class gtfs2_pg_sensor_1(CoordinatorEntity, SensorEntity):
 
         delta = get_now_utc() - get_utc_iso_str_to_datetime( self._attributes["gtfs_updated_at"] )
 
-        if p_longitude == -1 and p_latitude == - 1 :
-            # coordinates not received in parameters
-            device_tracker = self.hass.states.get( self.config_entry.data.get(CONF_DEVICE_TRACKER_ID,None))
-            self._latitude = device_tracker.attributes.get("latitude", None)
-            self._longitude = device_tracker.attributes.get("longitude", None)
-
-        else:
-            self._latitude  = p_latitude
-            self._longitude = p_longitude
-
-        distance_meters = -1
-        if ((self._previous_latitude  != -1) and (self._previous_longitude  != -1 )) : 
-            coords_1 = (self._latitude ,self._longitude)
-            coords_2 = (self._previous_latitude, self._previous_longitude)
-            distance_meters = geopy.distance.geodesic(coords_1, coords_2).meters 
-
 
         update = p_force_update
         if update:
@@ -251,36 +237,15 @@ class gtfs2_pg_sensor_1(CoordinatorEntity, SensorEntity):
                 update = True
 
         if not update:
-            if  ( self._previous_longitude == -1 ) or ( self._previous_latitude == -1):
-                _LOGGER.info("gtfs2_pg_sensor_1._update_attrs(caller=%s): %s, Logic Error => update", 
-                    p_called_by,self._name)
-                # this case should never happens
-                # was never updated ???? (= State <> Initialized  and no GSP coordinates ?????)
-                update = True
-
-        if not update:
             if delta.total_seconds()  > self._data.get('refresh_max_seconds',0): 
                 _LOGGER.info("gtfs2_pg_sensor_1._update_attrs(caller=%s): %s, data too old => update",
                     p_called_by, self._name)                
                 # existing data are outdated
                 update = True
 
-        if not update:
-            if distance_meters > self._data.get('refresh_min_distance',0):
-                _LOGGER.info("gtfs2_pg_sensor_1._update_attrs(caller=%s): %s, GPS moved %d meters (%2.8f %2.8f) => (%2.8f %2.8f) => update", 
-                    p_called_by,
-                    self._name, 
-                    distance_meters,
-                    self._previous_latitude, 
-                    self._previous_longitude, 
-                    self._latitude, 
-                    self._longitude)
-
-                # GPS coordinates are changing
-                update = True
 
         if not update:
-            reason = f"p_force_update= {p_force_update}, distance {distance_meters} < {self._data.get('refresh_min_distance',0)},  oudated {delta.total_seconds()} < {self._data.get('refresh_max_seconds',0)}"
+            reason = f"p_force_update= {p_force_update}, oudated {delta.total_seconds()} < {self._data.get('refresh_max_seconds',0)}"
 #            _LOGGER.debug("gtfs2_pg_sensor_1._update_attrs(caller=%s): %s, Update skipped, (reason= %s)", p_called_by, self._name, reason)
         else:
             
@@ -292,9 +257,6 @@ class gtfs2_pg_sensor_1(CoordinatorEntity, SensorEntity):
                     p_called_by, self._name)
             else:
                 self._state = "Updated"
-                self._attributes["latitude"] = self._latitude
-                self._attributes["longitude"] = self._longitude
-                self._attributes["movement_meters"] = distance_meters
                 self._attributes["gtfs_updated_at"] = get_now_utc_iso_to_str()
 
                 engine_type = self.coordinator.db_type
@@ -313,17 +275,17 @@ class gtfs2_pg_sensor_1(CoordinatorEntity, SensorEntity):
                 if force_now_time == None:
                     force_now_time = get_now_local_timezone(time_zone).strftime(TIME_STR_FORMAT)
 
-                self._departure = gtfs2_pg_sensor_1_get_data(
-                    pself       = self, 
+                self._departure = None
+
+                self._departure = gtfs2_pg_sensor_2_get_data(
                     engine_type = engine_type , 
                     engine      = self.coordinator.gtfs_engine,
                     feed_id     = self._feed_id, 
                     now_date    = force_now_date,
                     now_time    = force_now_time,
                     time_zone   = time_zone,
-                    longitude   = self._longitude, 
-                    latitude    = self._latitude, 
-                    radius      = self._data.get(CONF_RADIUS, 1500), 
+                    stop_regex1 = self._data["stop_regex1"],
+                    stop_regex2 = self._data["stop_regex2"],
                     timerange   = self._data.get(CONF_TIMERANGE, 30),
                     offset      = self._data.get(CONF_OFFSET,0),
                     caller_info = f"sensor = {self._name}")
@@ -333,12 +295,6 @@ class gtfs2_pg_sensor_1(CoordinatorEntity, SensorEntity):
                     self._attributes["stops"] = []
                 else:
                     self._attributes["stops"] = self._departure
-
-                if self._longitude != -1 :
-                    self._previous_longitude = self._longitude
-
-                if self._latitude != -1 :
-                    self._previous_latitude = self._latitude
 
                 self._attr_native_value = self._state        
                 self._attr_extra_state_attributes = self._attributes

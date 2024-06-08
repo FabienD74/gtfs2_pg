@@ -76,6 +76,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.debug(f"__init__.py  async_setup_entry: entry={entry}")
 
 
+####   où : entry.async_on_unload(entry.add_update_listener(update_listener))
+
+
     """Set up GTFS from a config entry."""
     hass.data.setdefault(DOMAIN, {})
 
@@ -99,6 +102,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         case "sensor_1":
             _LOGGER.debug("async_setup_entry: => Create sensor_1")
+            coordinator = gtfs2_pg_Coordinator_Sensor(hass, entry)
+            if not coordinator.last_update_success:
+                raise ConfigEntryNotReady
+
+            hass.data[DOMAIN][entry.entry_id] = {
+                "coordinator": coordinator
+            }
+
+            entry.async_on_unload(entry.add_update_listener(update_listener))
+            await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+            return True
+
+
+        case "sensor_2":
+            _LOGGER.debug("async_setup_entry: => Create sensor_2")
             coordinator = gtfs2_pg_Coordinator_Sensor(hass, entry)
             if not coordinator.last_update_success:
                 raise ConfigEntryNotReady
@@ -175,8 +193,15 @@ def setup(hass, config):
 ##################################################################"
 ##################################################################"
 async def update_listener(hass: HomeAssistant, entry: ConfigEntry):
-    """Handle options update."""
-    hass.data[DOMAIN][entry.entry_id]['coordinator'].update_interval = timedelta(minutes=1)
+ 
+ #### FDES: why do we maintain the .update_interval  ( and only .update_interval ) here ???
+ ####  => commented out to see if needed.
+ #   """Handle options update."""
+ #   hass.data[DOMAIN][entry.entry_id]['coordinator'].update_interval = timedelta(minutes=1)
+
+    # FDES: we are here because we have finished the "optionflow", and entry most be reloaded
+    await hass.config_entries.async_reload(entry.entry_id)
+
     return True
 
 

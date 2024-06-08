@@ -90,7 +90,7 @@ def create_table_feed(db_conn):
 ####################################################################
 def update_table_feed(db_conn, feeds):
 
-    _LOGGER.debug(f" update_table_feed feeds = {feeds}")
+ #   _LOGGER.debug(f" update_table_feed feeds = {feeds}")
 
 
     sql_query = f"""
@@ -162,7 +162,7 @@ def get_all_feeds_from_all_db (db_conn):
     all_feeds = []
 
     for row_data in result_data:
-        _LOGGER.debug(f"get_all_feeds_from_all_db db_id:{row_data["db_id"]} ({row_data["db_conn_str"]})")
+#        _LOGGER.debug(f"get_all_feeds_from_all_db db_id:{row_data["db_id"]} ({row_data["db_conn_str"]})")
 
         gtfs_engine = sqlalchemy.create_engine(row_data["db_conn_str"], echo=False)
         db_conn_gtfs = gtfs_engine.connect()
@@ -177,7 +177,7 @@ def get_all_feeds_from_all_db (db_conn):
             row_all_feeds["feed_name"]        = row_feed["feed_name"]
             row_all_feeds["feed_append_date"] = row_feed["feed_append_date"]
 
-            _LOGGER.debug(f"all_feeds.append ( row_all_feeds)=  {row_all_feeds}")
+#            _LOGGER.debug(f"all_feeds.append ( row_all_feeds)=  {row_all_feeds}")
 
             all_feeds.append ( row_all_feeds) 
 
@@ -196,9 +196,9 @@ class gtfs2_pg_sensor_master(CoordinatorEntity, SensorEntity):
         coordinator ) -> None:
 
         _LOGGER.debug(f"gtfs2_pg_sensor_master.__init__: BEGIN")
-        _LOGGER.debug(f"config_entry={config_entry}")
-        _LOGGER.debug(f"hass={hass}")
-        _LOGGER.debug(f"coordinator={coordinator}")
+#        _LOGGER.debug(f"config_entry={config_entry}")
+#        _LOGGER.debug(f"hass={hass}")
+#        _LOGGER.debug(f"coordinator={coordinator}")
 
         """Initialize the GTFSsensor."""
         self.hass = hass
@@ -237,7 +237,7 @@ class gtfs2_pg_sensor_master(CoordinatorEntity, SensorEntity):
             db_conn.close()
         except SQLAlchemyError as e:
             self._state = "SQL ERROR in gtfs2_pg_sensor_master.__init__"
-            _LOGGER.debug(f"gtfs2_pg_sensor_master.home_assistant_started: BEGIN")
+            _LOGGER.debug(f"gtfs2_pg_sensor_master.__init__ error={e}")
 
         
 
@@ -249,7 +249,7 @@ class gtfs2_pg_sensor_master(CoordinatorEntity, SensorEntity):
 
 
     async def home_assistant_started(self, event):
-        _LOGGER.debug(f"gtfs2_pg_sensor_master.home_assistant_started: BEGIN")
+#        _LOGGER.debug(f"gtfs2_pg_sensor_master.home_assistant_started: BEGIN")
         self._update_attrs(p_called_by = "home_assistant_started" )
 
     @property
@@ -280,9 +280,7 @@ class gtfs2_pg_sensor_master(CoordinatorEntity, SensorEntity):
             db_conn.close()
         except SQLAlchemyError as e:
             self._state = "SQL ERROR in gtfs2_pg_sensor_master.__init__"
-            _LOGGER.debug(f"gtfs2_pg_sensor_master.home_assistant_started: BEGIN")
-
-
+            _LOGGER.debug(f"gtfs2_pg_sensor_master._update_attrs error={e}")
 
         self._attributes["updated_at"] = get_now_utc_iso_to_str()
         self._attributes["all_feeds"] = all_feeds

@@ -66,32 +66,6 @@ def get_all_feeds_from_all_db(db_conn) -> dict[str]:
     db_list = []
     try:
 
-
-        sql_query = f"""
-            select *
-            from db_config 
-            """  # noqa: S608
-
-        db_res = db_conn.execute(sqlalchemy.sql.text(sql_query))
-        for row_cursor in db_res:
-            row = row_cursor._asdict()
-            _LOGGER.debug(f"db_config =  {row}")
-
-
-
-        sql_query = f"""
-            select *
-            from feed 
-            """  # noqa: S608
-
-        db_res = db_conn.execute(sqlalchemy.sql.text(sql_query))
-        for row_cursor in db_res:
-            row = row_cursor._asdict()
-            _LOGGER.debug(f"feed =  {row}")
-
-
-
-
         sql_query = f"""
             select db_config.db_id,  
                 db_config.db_conn_str ,

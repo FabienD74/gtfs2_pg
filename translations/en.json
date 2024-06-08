@@ -7,10 +7,8 @@
             "del_db_conn":    ".Remove DB connection(s)",
             "list_db_conn":   ".List DB Connctions", 
             "sensor_1" :      ".Add sensor with stops and departures in vicinity",
-            "start_end":      "Create schedule on start/end stops",
-            "local_stops":    "Scheduled departure on stops in your vicinity",
-            "source":         "Setup a new data source",
-            "remove":         "Remove an existing data source, e.g. to free up space",
+            "sensor_2" :      ".Add fuzzy start-stop sensor (Mad man-fuzzyy road)",
+            "del_feed" :      ".Delete feed",
             "db_upload":      "Upload Zip to DB (HARDCORE )"
         },
         "description": "Select your choice."
