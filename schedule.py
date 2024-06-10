@@ -141,26 +141,6 @@ class Schedule:
 
         fd = Feed_Reader(feed_filename, strip_fields)
 
-        gtfs_tables = {}
-        for gtfs_class in gtfs_all:
-            _LOGGER.debug(f"append_feed {gtfs_class}" ) 
-
-            gtfs_filename = gtfs_class.__tablename__ + '.txt'
-
-            try:
-                # We ignore the feed supplied feed id, because we create our own
-                # later.
-                gtfs_tables[gtfs_class] = fd.read_table(gtfs_filename,
-                                                        set(c.name for c in gtfs_class.__table__.columns) - {'feed_id'})
-            except (KeyError, IOError):
-                if gtfs_class in gtfs_required:
-                    _LOGGER.debug(f"Error: could not find {gtfs_filename}" ) 
-                    raise IOError('Error: could not find %s' % gtfs_filename)
-
-        if len(set(gtfs_tables) & gtfs_calendar) == 0:
-            _LOGGER.debug(f"Must have Calendar.txt or Calendar_dates.txt" ) 
-            raise PygtfsException('Must have Calendar.txt or Calendar_dates.txt')
-
         # create new feed
         feed_entry = Feed(feed_name=fd.feed_name, feed_append_date=date.today())
         self.session.add(feed_entry)
@@ -170,11 +150,24 @@ class Schedule:
             self.session.commit()
 
         feed_id = feed_entry.feed_id
-        for gtfs_class in gtfs_all:
-            if gtfs_class not in gtfs_tables:
-                continue
-            gtfs_table = gtfs_tables[gtfs_class]
 
+        for gtfs_class in gtfs_all:
+            gtfs_filename = gtfs_class.__tablename__ + '.txt'
+            gtfs_table = []
+            try:
+                # We ignore the feed supplied feed id, because we create our own
+                # later.
+                gtfs_table = fd.read_table(
+                    gtfs_filename,
+                    set(c.name for c in gtfs_class.__table__.columns) - {'feed_id'})
+
+            except (KeyError, IOError):
+                if gtfs_class in gtfs_required:
+                    _LOGGER.debug(f"Error: could not find {gtfs_filename}" ) 
+                    raise IOError('Error: could not find %s' % gtfs_filename)
+                else:
+                    # make sure table is empty....it should be but..
+                    gtfs_table = []
 
             for i, record in enumerate(gtfs_table):
                 if not record:
@@ -217,14 +210,11 @@ class Schedule:
                         _LOGGER.debug(f"debug: partial commit table:  record {i}" ) 
                         self.session.commit()
 
-#                    sys.stdout.write('.')
-#                    sys.stdout.flush()
-#            print('%d record%s read for %s.' % ((i+1), '' if i == 0 else 's',
-#                                                gtfs_class))
             self.session.flush()
             if partial_commit:
                 _LOGGER.debug(f"debug: partial commit end of table ..." ) 
                 self.session.commit()
+            gtfs_table = []
 
         _LOGGER.debug(f"END: final commit  ..." ) 
 

@@ -106,7 +106,7 @@ def update_table_feed(db_conn, feeds):
         """  # noqa: S608
     try:
         for row_feed in feeds:
-            _LOGGER.debug(f" => found feed: {row_feed} )")
+#            _LOGGER.debug(f" => found feed: {row_feed} )")
 
             result = db_conn.execute(
                 sqlalchemy.sql.text(sql_query),
@@ -169,7 +169,7 @@ def get_all_feeds_from_all_db (db_conn):
         feeds= get_all_feed_data (db_conn_gtfs)
         db_conn_gtfs.close()
         for row_feed in feeds:
-            _LOGGER.debug(f" => found feed: {row_feed["feed_id"]} = {row_feed["feed_name"]} ({row_feed["feed_append_date"]} )")
+#            _LOGGER.debug(f" => found feed: {row_feed["feed_id"]} = {row_feed["feed_name"]} ({row_feed["feed_append_date"]} )")
             row_all_feeds ={}
             row_all_feeds["db_id"]            = row_data["db_id"]
             row_all_feeds["db_conn_str"]      = row_data["db_conn_str"]
@@ -180,15 +180,12 @@ def get_all_feeds_from_all_db (db_conn):
 #            _LOGGER.debug(f"all_feeds.append ( row_all_feeds)=  {row_all_feeds}")
 
             all_feeds.append ( row_all_feeds) 
-
-
     return all_feeds
 
 
 ########################################################
 class gtfs2_pg_sensor_master(CoordinatorEntity, SensorEntity):
 ########################################################
-    
 ### __INIT__
     def __init__( self,
         hass: HomeAssistant,

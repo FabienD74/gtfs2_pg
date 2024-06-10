@@ -35,16 +35,26 @@ _LOGGER = logging.getLogger(__name__)
 
 def upload_zip_to_db (db_conn_str , filename  ):
 
-    if os.fork() != 0:    
-        return
+    if 1 == 2 :
+            # in foregroud to have debug... but ill fail with time-out :-(
+            sched = Schedule ( db_conn_str)
+            sched = sched.append_feed (
+                feed_filename = filename, 
+                strip_fields=False,
+                chunk_size=10000,
+                agency_id_override=None,
+                partial_commit=True)
     else:
-        sched = Schedule ( db_conn_str)
-        sched = sched.append_feed (
-            feed_filename = filename, 
-            strip_fields=True,
-            chunk_size=10000,
-            agency_id_override=None,
-            partial_commit=True)
+        if os.fork() != 0:    
+            return
+        else:
+            sched = Schedule ( db_conn_str)
+            sched = sched.append_feed (
+                feed_filename = filename, 
+                strip_fields=False,
+                chunk_size=10000,
+                agency_id_override=None,
+                partial_commit=True)
 
 
     return
