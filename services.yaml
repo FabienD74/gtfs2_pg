@@ -4,7 +4,7 @@ update_gtfs:
   description: Unpacks source to gtfs-db
   fields:
     extract_from:
-      name: Indicate source of the data 
+      name: Indicate source of the data
       description: Select if you update from url or zip
       required: true
       example: "url"
@@ -21,7 +21,7 @@ update_gtfs:
       required: true
       example: "mytransportservice"
       selector:
-        text:            
+        text:
     url:
       name: URL
       description: provide the full path to the zip file itself
@@ -29,15 +29,14 @@ update_gtfs:
       default: "na"
       example: "https://path-to-my-zip-file-location/filename.zip"
       selector:
-        text:            
+        text:
     clean_feed_info:
       name: Remove feed-info
       description: Removes feed_info.txt from zip (use in case file content incorrect)
       required: true
       default: false
       selector:
-        boolean: 
-
+        boolean:
 
 update_gtfs_rt_local:
   name: Update GTFS Realtime Data locally
@@ -49,7 +48,7 @@ update_gtfs_rt_local:
       required: true
       example: "mytransportservice"
       selector:
-        text:            
+        text:
     url:
       name: URL
       description: provide the full path to the zip file itself
@@ -63,23 +62,23 @@ update_gtfs_rt_local:
       description: provide api_key if required
       required: false
       selector:
-        text:        
+        text:
     x_api_key:
       name: x_api_key
       description: provide x_api_key if required
       required: false
       selector:
-        text:  
+        text:
     ocp_apim_subscription_key:
       name: Ocp-Apim-Subscription-Key
       description: provide Ocp-Apim if required
       required: false
       selector:
-        text:         
+        text:
     api_key_location:
       name: Indicate location of the key
       description: Select location of the key
-      required: true      
+      required: true
       default: "not_applicable"
       example: "not_applicable"
       selector:
@@ -88,17 +87,17 @@ update_gtfs_rt_local:
           options:
             - "not_applicable"
             - "header"
-            - "query_string"     
+            - "query_string"
     accept:
       name: Accept
       description: add application/protobuf to the header
       default: false
-      required: true      
+      required: true
       selector:
-        boolean: 
-        
+        boolean:
+
     rt_type:
-      name: Indicate type of realtime data 
+      name: Indicate type of realtime data
       description: Select if you update from url or zip
       required: true
       default: "trip_data"
@@ -107,21 +106,21 @@ update_gtfs_rt_local:
           translation_key: "extract_from"
           options:
             - "trip_data"
-            - "vehicle_positions"   
+            - "vehicle_positions"
             - "alerts"
-      
+
     debug_output:
       name: Save all to local file in readable format
       description: for debug purposes, see /config/www/gtfs2
       required: true
       default: false
       selector:
-        boolean:         
-        
-update_gtfs_local_stops: 
+        boolean:
+
+update_gtfs_local_stops:
   name: Update Local Stops
   description: Updates local stops based on location entity
-  fields:       
+  fields:
     entity_id:
       name: Entity
       description: Select person or zone to update stops for
@@ -129,4 +128,4 @@ update_gtfs_local_stops:
       example: "zone.home"
       selector:
         entity:
-          domain: ["person", "zone"]          
+          domain: ["person", "zone"]

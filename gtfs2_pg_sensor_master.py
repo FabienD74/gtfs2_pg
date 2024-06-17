@@ -286,5 +286,7 @@ class gtfs2_pg_sensor_master(CoordinatorEntity, SensorEntity):
         self._attr_native_value = self._state        
         self._attr_extra_state_attributes = self._attributes
 
+        db_conn.close()
+
         super()._handle_coordinator_update()
 

@@ -17,12 +17,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from .common import *
 
-#from .config_flow_helper import *        
-
-from .gtfs2_pg_zip_import import *
-
 from .schedule import *
-
 
 import os
 
@@ -31,33 +26,6 @@ _LOGGER = logging.getLogger(__name__)
 @config_entries.HANDLERS.register(DOMAIN)
 
 
-
-
-def upload_zip_to_db (db_conn_str , filename  ):
-
-    if 1 == 2 :
-            # in foregroud to have debug... but ill fail with time-out :-(
-            sched = Schedule ( db_conn_str)
-            sched = sched.append_feed (
-                feed_filename = filename, 
-                strip_fields=False,
-                chunk_size=10000,
-                agency_id_override=None,
-                partial_commit=True)
-    else:
-        if os.fork() != 0:    
-            return
-        else:
-            sched = Schedule ( db_conn_str)
-            sched = sched.append_feed (
-                feed_filename = filename, 
-                strip_fields=False,
-                chunk_size=10000,
-                agency_id_override=None,
-                partial_commit=True)
-
-
-    return
 
 
 ##########################################################
@@ -436,6 +404,11 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
                 if datasources_selected != None:
                     upload_zip_to_db (db_conn_str = datasources_selected["db_conn_str"] , filename = user_input['zip_file'] )
+
+#                    self.hass.async_create_task( 
+#                        upload_zip_to_db (db_conn_str = datasources_selected["db_conn_str"] , filename = user_input['zip_file'] ) \
+#                        )
+
                     return self.async_abort(reason="Upload started in background...be patient!")
     
             self.engine = sql
@@ -493,33 +466,36 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     if ( int(line["db_id"]) ==  int (db_id) ) and ( int(line["feed_id"]) ==  int (feed_id) ) : 
                         feed_selected = line
                 if feed_selected != None:
-                    table_sequence = [
-                        'trips',
-                        'shapes',
-                        'routes',
-                        'stop_times',
-                        'stops',
-                        'calendar_dates',
-                        'calendar',
-                        'agency',
-                        'feed_info',
-                        '_feed']
-                    l_engine = sqlalchemy.create_engine(feed_selected["db_conn_str"], echo=True)
-                    db_conn = l_engine.connect()
+                    if os.fork() != 0:    
+                        return self.async_abort(reason="Feed deletion in progress...")
+                    else:
+                        table_sequence = [
+                            'trips',
+                            'shapes',
+                            'routes',
+                            'stop_times',
+                            'stops',
+                            'calendar_dates',
+                            'calendar',
+                            'agency',
+                            'feed_info',
+                            '_feed']
+                        l_engine = sqlalchemy.create_engine(feed_selected["db_conn_str"], echo=True)
+                        db_conn = l_engine.connect()
 
-                    for line in table_sequence:
-                        try:
-                            db_sql = f"delete from {line} where feed_id = {feed_id} "     
-                            _LOGGER.debug(f"execute : {db_sql} on {feed_selected["db_conn_str"]}")
-                            db_res = db_conn.execute(sqlalchemy.sql.text(db_sql))
+                        for line in table_sequence:
+                            try:
+                                db_sql = f"delete from {line} where feed_id = {feed_id} "     
+                                _LOGGER.debug(f"execute : {db_sql} on {feed_selected["db_conn_str"]}")
+                                db_res = db_conn.execute(sqlalchemy.sql.text(db_sql))
+                                db_conn.commit()
+
+                            except SQLAlchemyError as e:
+                                errors["base"] = f"SQL Error: {e}"
+                                
                             db_conn.commit()
-
-                        except SQLAlchemyError as e:
-                            errors["base"] = f"SQL Error: {e}"
-                            
-                        db_conn.commit()
-                    db_conn.close()
-                    return self.async_abort(reason="Feed deleted")
+                        db_conn.close()
+                        return
 
 
         # end if user_input is not None:

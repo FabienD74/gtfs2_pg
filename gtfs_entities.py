@@ -90,7 +90,7 @@ def _validate_float_none(*field_names):
 
 class Feed(Base):
     __tablename__ = '_feed'
-    _plural_name_ = 'feeds'
+    _plural_name_ = '_feed'
     feed_id = Column(Integer, primary_key=True)
     id = synonym('feed_id')
     feed_name = Column(Unicode)
@@ -100,19 +100,19 @@ class Feed(Base):
     # by deleting a feed (because of 'cascading')
 
     agencies = relationship("Agency", backref=("feed"), cascade="all, delete-orphan")
-    stops = relationship("Stop", backref=("feed"), cascade="all, delete-orphan")
-    routes = relationship("Route", backref=("feed"), cascade="all, delete-orphan")
-    trips = relationship("Trip", backref=("feed"), cascade="all, delete-orphan")
-    stop_times = relationship("StopTime", backref=("feed"), cascade="all, delete-orphan")
-    services = relationship("Service", backref=("feed"), cascade="all, delete-orphan")
-    service_exceptions = relationship("ServiceException", backref=("feed"), cascade="all, delete-orphan")
-    fares = relationship("Fare", backref=("feed"), cascade="all, delete-orphan")
-    fare_rules = relationship("FareRule", backref=("feed"), cascade="all, delete-orphan")
-    shape_points = relationship("ShapePoint", backref=("feed"), cascade="all, delete-orphan")
-    frequencies = relationship("Frequency", backref=("feed"), cascade="all, delete-orphan")
-    transfers = relationship("Transfer", backref=("feed"), cascade="all, delete-orphan")
+    stops = relationship("Stops", backref=("feed"), cascade="all, delete-orphan")
+    routes = relationship("Routes", backref=("feed"), cascade="all, delete-orphan")
+    trips = relationship("Trips", backref=("feed"), cascade="all, delete-orphan")
+    stop_times = relationship("StopTimes", backref=("feed"), cascade="all, delete-orphan")
+    services = relationship("Calendar", backref=("feed"), cascade="all, delete-orphan")
+    service_exceptions = relationship("CalendarDates", backref=("feed"), cascade="all, delete-orphan")
+    fares = relationship("FareAttributes", backref=("feed"), cascade="all, delete-orphan")
+    fare_rules = relationship("FareRules", backref=("feed"), cascade="all, delete-orphan")
+    shape_points = relationship("Shapes", backref=("feed"), cascade="all, delete-orphan")
+    frequencies = relationship("Frequencies", backref=("feed"), cascade="all, delete-orphan")
+    transfers = relationship("Transfers", backref=("feed"), cascade="all, delete-orphan")
     feedinfo = relationship("FeedInfo", backref=("feed"), cascade="all, delete-orphan")
-    translations = relationship("Translation", backref=("feed"), cascade="all, delete-orphan")
+    translations = relationship("Translations", backref=("feed"), cascade="all, delete-orphan")
 
     def __repr__(self):
         return '<Feed %s: %s>' % (self.feed_id, self.feed_name)
@@ -120,7 +120,7 @@ class Feed(Base):
 
 class Agency(Base):
     __tablename__ = 'agency'
-    _plural_name_ = 'agencies'
+    _plural_name_ = 'agency'
     feed_id = Column(Integer, ForeignKey('_feed.feed_id'), primary_key=True)
     agency_id = Column(Unicode, primary_key=True, default="None", index=True)
     id = synonym('agency_id')
@@ -136,7 +136,7 @@ class Agency(Base):
         return '<Agency %s: %s>' % (self.agency_id, self.agency_name)
 
 
-class Stop(Base):
+class Stops(Base):
     __tablename__ = 'stops'
     _plural_name_ = 'stops'
     feed_id = Column(Integer, ForeignKey('_feed.feed_id'), primary_key=True)
@@ -155,7 +155,7 @@ class Stop(Base):
     wheelchair_boarding = Column(Integer, nullable=True)
     platform_code = Column(Unicode, nullable=True)
 
-    translations = relationship('Translation', secondary='_stop_translations')
+    translations = relationship('Translations', secondary='_stop_translations')
 
     __table_args__ = (Index('idx_stop_for_translations', feed_id, stop_name, stop_id),)
 
@@ -169,7 +169,7 @@ class Stop(Base):
         return '<Stop %s: %s>' % (self.stop_id, self.stop_name)
 
 
-class Route(Base):
+class Routes(Base):
     __tablename__ = 'routes'
     _plural_name_ = 'routes'
     feed_id = Column(Integer, ForeignKey('_feed.feed_id'), primary_key=True)
@@ -222,7 +222,7 @@ class Route(Base):
         return '<Route %s: %s>' % (self.route_id, self.route_short_name)
 
 
-class ShapePoint(Base):
+class Shapes(Base):
     __tablename__ = 'shapes'
     _plural_name_ = 'shapes'
     feed_id = Column(Integer, ForeignKey('_feed.feed_id'), primary_key=True)
@@ -244,9 +244,9 @@ class ShapePoint(Base):
         return '<ShapePoint %s>' % self.shape_id
 
 
-class Service(Base):
+class Calendar(Base):
     __tablename__ = 'calendar'
-    _plural_name_ = 'services'
+    _plural_name_ = 'calendar'
     feed_id = Column(Integer, ForeignKey('_feed.feed_id'), primary_key=True)
     service_id = Column(Unicode, primary_key=True, index=True)
     id = synonym('service_id')
@@ -277,9 +277,9 @@ class Service(Base):
         return '<Service %s (%s)>' % (self.service_id, dayofweek)
 
 
-class ServiceException(Base):
+class CalendarDates(Base):
     __tablename__ = 'calendar_dates'
-    _plural_name_ = 'service_exceptions'
+    _plural_name_ = 'calendar_dates'
     feed_id = Column(Integer, ForeignKey('_feed.feed_id'), primary_key=True)
     service_id = Column(Unicode, primary_key=True, index=True)
     id = synonym('service_id')
@@ -293,7 +293,7 @@ class ServiceException(Base):
         return '<ServiceException %s: %s>' % (self.service_id, self.date)
 
 
-class Trip(Base):
+class Trips(Base):
     __tablename__ = 'trips'
     _plural_name_ = 'trips'
     feed_id = Column(Integer, ForeignKey('_feed.feed_id'), primary_key=True)
@@ -310,23 +310,23 @@ class Trip(Base):
     bikes_allowed = Column(Integer, nullable=True)
 
     __table_args__ = (
-        ForeignKeyConstraint([feed_id, route_id], [Route.feed_id, Route.route_id]),
-        ForeignKeyConstraint([feed_id, service_id], [Service.feed_id, Service.service_id]),
+        ForeignKeyConstraint([feed_id, route_id], [Routes.feed_id, Routes.route_id]),
+        ForeignKeyConstraint([feed_id, service_id], [Calendar.feed_id, Calendar.service_id]),
         Index('idx_trips_shape_id', feed_id, shape_id),
     )
 
-    route = relationship(Route, backref="trips",
-            primaryjoin=and_(Route.route_id==foreign(route_id),
-                             Route.feed_id==feed_id))
+    route = relationship(Routes, backref="trips",
+            primaryjoin=and_(Routes.route_id==foreign(route_id),
+                             Routes.feed_id==feed_id))
 
-    shape_points = relationship(ShapePoint, backref="trips",
+    shape_points = relationship(Shapes, backref="trips",
             secondary="_trip_shapes")
 
     # TODO: The service_id references to calendar or to calendar_dates.
     # Need to implement this requirement, but not using a simple foreign key.
-    service = relationship(Service, backref='trips',
-              primaryjoin=and_(foreign(service_id) == Service.service_id,
-                               feed_id == Service.feed_id))
+    service = relationship(Calendar, backref='trips',
+              primaryjoin=and_(foreign(service_id) == Calendar.service_id,
+                               feed_id == Calendar.feed_id))
 
 
     _validate_direction_id = _validate_int_choice([None, 0, 1], 'direction_id')
@@ -338,7 +338,7 @@ class Trip(Base):
         return '<Trip %s>' % self.trip_id
 
 
-class Translation(Base):
+class Translations(Base):
     __tablename__ = 'translations'
     _plural_name_ = 'translations'
     feed_id = Column(Integer, ForeignKey('_feed.feed_id'), primary_key=True)
@@ -353,7 +353,7 @@ class Translation(Base):
                                                  self.translation)
 
 
-class StopTime(Base):
+class StopTimes(Base):
     __tablename__ = 'stop_times'
     _plural_name_ = 'stop_times'
     feed_id = Column(Integer, ForeignKey('_feed.feed_id'), primary_key=True)
@@ -369,16 +369,16 @@ class StopTime(Base):
     timepoint = Column(Integer, nullable=True)
 
     __table_args__ = (
-        ForeignKeyConstraint([feed_id, stop_id], [Stop.feed_id, Stop.stop_id]),
-        ForeignKeyConstraint([feed_id, trip_id], [Trip.feed_id, Trip.trip_id]),
+        ForeignKeyConstraint([feed_id, stop_id], [Stops.feed_id, Stops.stop_id]),
+        ForeignKeyConstraint([feed_id, trip_id], [Trips.feed_id, Trips.trip_id]),
     )
 
-    stop = relationship(Stop, backref='stop_times',
-            primaryjoin=and_(Stop.stop_id==foreign(stop_id),
-                             Stop.feed_id==feed_id))
-    trip = relationship(Trip, backref="stop_times",
-            primaryjoin=and_(Trip.trip_id==foreign(trip_id),
-                             Trip.feed_id==feed_id))
+    stop = relationship(Stops, backref='stop_times',
+            primaryjoin=and_(Stops.stop_id==foreign(stop_id),
+                             Stops.feed_id==feed_id))
+    trip = relationship(Trips, backref="stop_times",
+            primaryjoin=and_(Trips.trip_id==foreign(trip_id),
+                             Trips.feed_id==feed_id))
 
     _validate_pickup_drop_off = _validate_int_choice([None, 0, 1, 2, 3],
                                                      'pickup_type',
@@ -391,9 +391,9 @@ class StopTime(Base):
         return '<StopTime %s: %d>' % (self.trip_id, self.stop_sequence)
 
 
-class Fare(Base):
+class FareAttributes(Base):
     __tablename__ = 'fare_attributes'
-    _plural_name_ = 'fares'
+    _plural_name_ = 'fare_attributes'
     feed_id = Column(Integer, ForeignKey('_feed.feed_id'), primary_key=True)
     fare_id = Column(Unicode, primary_key=True, index=True)
     id = synonym('fare_id')
@@ -411,7 +411,7 @@ class Fare(Base):
         return '<Fare %s>' % self.fare_id
 
 
-class FareRule(Base):
+class FareRules(Base):
     __tablename__ = 'fare_rules'
     _plural_name_ = 'fare_rules'
     fare_rule_internal_key = Column(Integer, primary_key=True)
@@ -428,12 +428,12 @@ class FareRule(Base):
     contains_id = Column(Unicode, nullable=True)
 
     __table_args__ = (
-        ForeignKeyConstraint([feed_id, route_id], [Route.feed_id, Route.route_id]),
+        ForeignKeyConstraint([feed_id, route_id], [Routes.feed_id, Routes.route_id]),
     )
 
-    route = relationship(Route, backref="fare_rules",
-            primaryjoin=and_(Route.route_id==foreign(route_id),
-                             Route.feed_id==feed_id))
+    route = relationship(Routes, backref="fare_rules",
+            primaryjoin=and_(Routes.route_id==foreign(route_id),
+                             Routes.feed_id==feed_id))
 
     def __repr__(self):
         return '<FareRule %s: %s %s %s %s>' % (self.fare_id,
@@ -443,7 +443,7 @@ class FareRule(Base):
                                                self.contains_id)
 
 
-class Frequency(Base):
+class Frequencies(Base):
     __tablename__ = 'frequencies'
     _plural_name_ = 'frequencies'
     feed_id = Column(Integer, ForeignKey('_feed.feed_id'), primary_key=True)
@@ -454,12 +454,12 @@ class Frequency(Base):
     exact_times = Column(Integer, nullable=True)
 
     __table_args__ = (
-        ForeignKeyConstraint([feed_id, trip_id], [Trip.feed_id, Trip.trip_id]),
+        ForeignKeyConstraint([feed_id, trip_id], [Trips.feed_id, Trips.trip_id]),
     )
 
-    trip = relationship(Trip, backref="frequencies",
-            primaryjoin=and_(Trip.trip_id==foreign(trip_id),
-                             Trip.feed_id==feed_id))
+    trip = relationship(Trips, backref="frequencies",
+            primaryjoin=and_(Trips.trip_id==foreign(trip_id),
+                             Trips.feed_id==feed_id))
 
     _validate_exact_times = _validate_int_choice([None, 0, 1], 'exact_times')
     _validate_deltas = _validate_time_delta('start_time', 'end_time')
@@ -469,7 +469,7 @@ class Frequency(Base):
                                          self.end_time)
 
 
-class Transfer(Base):
+class Transfers(Base):
     __tablename__ = 'transfers'
     _plural_name_ = 'transfers'
     feed_id = Column(Integer, ForeignKey('_feed.feed_id'), primary_key=True)
@@ -484,28 +484,28 @@ class Transfer(Base):
     min_transfer_time = Column(Integer, nullable=True)
 
     __table_args__ = (
-        ForeignKeyConstraint([feed_id, from_stop_id], [Stop.feed_id, Stop.stop_id]),
-        ForeignKeyConstraint([feed_id, to_stop_id], [Stop.feed_id, Stop.stop_id]),
+        ForeignKeyConstraint([feed_id, from_stop_id], [Stops.feed_id, Stops.stop_id]),
+        ForeignKeyConstraint([feed_id, to_stop_id], [Stops.feed_id, Stops.stop_id]),
     )
 
-    stop_to = relationship(Stop, backref="transfers_to",
-                           primaryjoin=and_(Stop.stop_id == foreign(to_stop_id),
-                                            Stop.feed_id == feed_id))
-    stop_from = relationship(Stop, backref="transfers_from",
-                             primaryjoin=and_(Stop.stop_id == foreign(from_stop_id),
-                                              Stop.feed_id == feed_id))
-    route_from = relationship(Route, backref="transfers_from",
-                              primaryjoin=and_(Route.route_id == foreign(from_route_id),
-                                               Route.feed_id == feed_id))
-    route_to = relationship(Route, backref="transfers_to",
-                            primaryjoin=and_(Route.route_id == foreign(to_route_id),
-                                             Route.feed_id == feed_id))
-    trip_from = relationship(Trip, backref="transfers_from",
-                             primaryjoin=and_(Trip.trip_id == foreign(from_trip_id),
-                                              Trip.feed_id == feed_id))
-    trip_to = relationship(Trip, backref="transfers_to",
-                           primaryjoin=and_(Trip.trip_id == foreign(to_trip_id),
-                                            Trip.feed_id == feed_id))
+    stop_to = relationship(Stops, backref="transfers_to",
+                           primaryjoin=and_(Stops.stop_id == foreign(to_stop_id),
+                                            Stops.feed_id == feed_id))
+    stop_from = relationship(Stops, backref="transfers_from",
+                             primaryjoin=and_(Stops.stop_id == foreign(from_stop_id),
+                                              Stops.feed_id == feed_id))
+    route_from = relationship(Routes, backref="transfers_from",
+                              primaryjoin=and_(Routes.route_id == foreign(from_route_id),
+                                               Routes.feed_id == feed_id))
+    route_to = relationship(Routes, backref="transfers_to",
+                            primaryjoin=and_(Routes.route_id == foreign(to_route_id),
+                                             Routes.feed_id == feed_id))
+    trip_from = relationship(Trips, backref="transfers_from",
+                             primaryjoin=and_(Trips.trip_id == foreign(from_trip_id),
+                                              Trips.feed_id == feed_id))
+    trip_to = relationship(Trips, backref="transfers_to",
+                           primaryjoin=and_(Trips.trip_id == foreign(to_trip_id),
+                                            Trips.feed_id == feed_id))
 
     _validate_transfer_type = _validate_int_choice([None, 0, 1, 2, 3],
                                                    'transfer_type')
@@ -518,7 +518,7 @@ class Transfer(Base):
 
 class FeedInfo(Base):
     __tablename__ = 'feed_info'
-    _plural_name_ = 'feed_infos'
+    _plural_name_ = 'feed_info'
     feed_id = Column(Integer, ForeignKey('_feed.feed_id'), primary_key=True)
     feed_publisher_name = Column(Unicode, primary_key=True)
     feed_publisher_url = Column(Unicode, primary_key=True)
@@ -542,8 +542,8 @@ _stop_translations = Table(
     Column('stop_id', Unicode),
     Column('trans_id', Unicode),
     Column('lang', Unicode),
-    ForeignKeyConstraint(['stop_feed_id', 'stop_id'], [Stop.feed_id, Stop.stop_id]),
-    ForeignKeyConstraint(['translation_feed_id', 'trans_id', 'lang'], [Translation.feed_id, Translation.trans_id, Translation.lang]),
+    ForeignKeyConstraint(['stop_feed_id', 'stop_id'], [Stops.feed_id, Stops.stop_id]),
+    ForeignKeyConstraint(['translation_feed_id', 'trans_id', 'lang'], [Translations.feed_id, Translations.trans_id, Translations.lang]),
 )
 
 
@@ -554,16 +554,16 @@ _trip_shapes = Table(
     Column('trip_id', Unicode),
     Column('shape_id', Unicode),
     Column('shape_pt_sequence', Integer),
-    ForeignKeyConstraint(['trip_feed_id', 'trip_id'], [Trip.feed_id, Trip.trip_id]),
+    ForeignKeyConstraint(['trip_feed_id', 'trip_id'], [Trips.feed_id, Trips.trip_id]),
     ForeignKeyConstraint(['shape_feed_id', 'shape_id', 'shape_pt_sequence'],
-        [ShapePoint.feed_id, ShapePoint.shape_id, ShapePoint.shape_pt_sequence]),
+        [Shapes.feed_id, Shapes.shape_id, Shapes.shape_pt_sequence]),
 )
 
 
 # a feed can skip Service (calendar) if it has ServiceException(calendar_dates)
-gtfs_required = {Agency, Stop, Route, Trip, StopTime}
-gtfs_calendar = {Service, ServiceException}
+gtfs_required = {Agency, Stops, Routes, Trips, StopTimes}
+gtfs_calendar = {Calendar, CalendarDates}
 # gtfs all must maintain the right insertion order due to dependencies.
-gtfs_all = [Agency, Stop, Transfer, Route, Fare, FareRule, ShapePoint,
-            Service, ServiceException, Trip, Frequency, StopTime, FeedInfo,
-            Translation]
+gtfs_all = [Agency, Stops, Transfers, Routes, FareAttributes, FareRules, Shapes,
+            Calendar, CalendarDates, Trips, Frequencies, StopTimes, FeedInfo,
+            Translations]
