@@ -7,6 +7,7 @@ from __future__ import annotations
 #from datetime import datetime, timezone
 import datetime  as dt
 import logging
+import math
 from typing import Any
 
 import os
@@ -82,22 +83,37 @@ def get_end_stop_of_trip(gtfs_conn, feed_id, trip_id, direction_id):
 ####################################################################
 ####################################################################
 ####################################################################
+@cachetools.func.ttl_cache(maxsize=2048, ttl=3600)  # Note: TTL value is in seconds.
 def get_stops_arround_gps(gtfs_conn, feed_id , longitude, latitude,radius):
 # return table of rows 
 
 #    _LOGGER.info(f"get_stops_arround_gps feed_id= {feed_id} longitude={longitude} latitude={latitude} radius={radius}")
 
-    angle = ( 360.0 *  radius ) / ( 40000.0 * 1000.0 )
-
+#    angle = ( 360.0 *  radius ) / ( 40000.0 * 1000.0 )
     area_min_longitude = 0
     area_min_latitude  = 0
     area_max_longitude = 0
     area_max_latitude = 0
 
-    area_min_longitude = longitude - angle
-    area_max_longitude = longitude + angle
-    area_min_latitude = latitude - angle
-    area_max_latitude = latitude + angle
+#    area_min_longitude = longitude - angle
+#    area_max_longitude = longitude + angle
+#    area_min_latitude = latitude - angle
+#    area_max_latitude = latitude + angle
+
+
+    sizeLat = (radius * 360.0) / (40075 * 1000.0);    # degree of latitude shift
+    radian= (latitude * math.pi ) / 180;             # conversion to radian
+    sizeLong = sizeLat / math.cos(radian);                 # conversion to degrees of longitude shift
+
+#longitude - sizeLong // formula for calculating longitude Min (original longitude minus shift)
+#longitude + sizeLong // formula for calculating longitude Max (original longitude plus shift)
+#latitude - size // formula for calculating latitude Min (initial latitude minus shift)
+#latitude + size // formula for calculating latitude Max (original latitude plus shift)
+ 
+    area_min_longitude = longitude - sizeLong
+    area_max_longitude = longitude + sizeLong
+    area_min_latitude = latitude - sizeLat
+    area_max_latitude = latitude + sizeLat
 
     # north pole
     if area_max_latitude > 90:
@@ -610,20 +626,22 @@ def next_departures_postgresql(engine,
                     trip_id = row["trip_id"], 
                     direction_id = row["direction_id"] )
 
-                departures_returned = departures_returned + 1
-                timetable.append({ 
-#                            "date":          row["departure_date"], 
-#                    "route_long":    row["route_long_name"], 
-#                            "departure_realtime": departure_rt, 
-#                            "delay_realtime": delay_rt,  
-                    "departure":     row["depart_time_corrected"], 
-                    "route":         row["route_short_name"], 
-                    "end_stop_id":   end_stop["stop_id"],
-                    "end_stop_name": end_stop["stop_name"],
-                    "headsign":      row["trip_headsign"], 
-                    "trip_id":       row["trip_id"], 
-                    "direction_id":  row["direction_id"], 
-                    "icon":          ICONS.get(row['route_type'], ICON) })
+                if row_stop['stop_id'] != end_stop['stop_id'] : 
+                    # we search for departures only, if current stop is the terminus, we skip! ;-)
+                    departures_returned = departures_returned + 1
+                    timetable.append({ 
+    #                            "date":          row["departure_date"], 
+    #                    "route_long":    row["route_long_name"], 
+    #                            "departure_realtime": departure_rt, 
+    #                            "delay_realtime": delay_rt,  
+                        "departure":     row["depart_time_corrected"], 
+                        "route":         row["route_short_name"], 
+                        "end_stop_id":   end_stop["stop_id"],
+                        "end_stop_name": end_stop["stop_name"],
+                        "headsign":      row["trip_headsign"], 
+                        "trip_id":       row["trip_id"], 
+                        "direction_id":  row["direction_id"], 
+                        "icon":          ICONS.get(row['route_type'], ICON) })
 
         entry = {"stop_id": row_stop['stop_id'], 
             "distance": row_stop["distance"], 

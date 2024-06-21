@@ -14,6 +14,8 @@ import sys
 
 import multiprocessing
 
+import more_itertools
+
 import logging
 _LOGGER = logging.getLogger(__name__)
 
@@ -110,11 +112,60 @@ class Schedule:
 
 
     ####################################
-    def process_chunk (self, gtfs_class, feed_id, chunk_records):
+    def process_chunk (self, l_session, gtfs_class, feed_id, chunk_records):
 
-        l_engine = sqlalchemy.create_engine(self.db_connection)
-        l_Session = sqlalchemy.orm.sessionmaker(bind=l_engine)
-        l_session = l_Session()
+        if ( gtfs_class ==  CalendarDates ):
+            for record in chunk_records:
+                try:
+                    instance = gtfs_class(feed_id=feed_id, **record._asdict())
+                except:
+            #                _LOGGER.debug(f"Failure while writing {record}" ) 
+            #                print("Failure while writing {0}".format(record))
+                    raise
+                l_session.add(instance)
+
+                calendar = l_session.execute(
+                    select(Calendar).where(Calendar.service_id == instance.service_id).where(Calendar.feed_id == feed_id)
+                ).one_or_none()
+                if calendar is None:
+                    # CalendarDates was added for a day that has no associated regular service
+                    # Create a dummy service object for this service exception
+
+                    _LOGGER.debug(f"ADD DUMMY CALENDAR for {instance.service_id}" ) 
+
+                    dummy = Calendar(
+                        feed_id=feed_id, 
+                        service_id=instance.service_id,
+                        monday='0',
+                        tuesday='0',
+                        wednesday='0',
+                        thursday='0',
+                        friday='0',
+                        saturday='0',
+                        sunday='0',
+                        start_date=instance.date.strftime('%Y%m%d'),
+                        end_date=instance.date.strftime('%Y%m%d'))
+                    l_session.add(dummy)
+            l_session.flush()
+            l_session.commit()
+            return
+
+
+        else:
+            for record in chunk_records:
+                try:
+                    instance = gtfs_class(feed_id=feed_id, **record._asdict())
+                except:
+            #                _LOGGER.debug(f"Failure while writing {record}" ) 
+            #                print("Failure while writing {0}".format(record))
+                    raise
+                l_session.add(instance)
+
+            l_session.flush()
+            l_session.commit()
+            return
+
+
 
 
         for i, record in enumerate(chunk_records):
@@ -158,17 +209,19 @@ class Schedule:
 
 
     ####################################
-    def import_single_gtfs(self, feed_filename, strip_fields, gtfs_class, feed_id, chunk_size, partial_commit):
+    def import_single_gtfs(self, feed_filename, strip_fields, gtfs_class, feed_id, chunk_size):
         gtfs_filename = gtfs_class.__tablename__ + '.txt'
     #    _LOGGER.debug(f"import_single_gtfs: BEGIN {gtfs_filename}" ) 
 
-        feed_reader = Feed_Reader(feed_filename, strip_fields)
+        l_engine = sqlalchemy.create_engine(self.db_connection, pool_size=20, max_overflow=0 )
+        l_Session = sqlalchemy.orm.sessionmaker(bind=l_engine)
+        l_session = l_Session()
 
+
+        feed_reader = Feed_Reader(feed_filename, strip_fields)
 
         gtfs_table = []
         try:
-            # We ignore the feed supplied feed id, because we create our own
-            # later.
             gtfs_table = feed_reader.read_table(
                 gtfs_filename,
                 set(c.name for c in gtfs_class.__table__.columns) - {'feed_id'})
@@ -182,39 +235,57 @@ class Schedule:
                 # make sure table is empty....it should be but..
                 gtfs_table = []
 
+        chunks = more_itertools.ichunked(gtfs_table, chunk_size)
 
-        i = 0
-        chunk_records = []
+        if 1 == 2:
+            pool = multiprocessing.Pool(2)
+            for chunk in chunks:
+#                self.process_chunk (gtfs_class,feed_id,chunk)
+                pool.apply_async(self.process_chunk, args = (sgtfs_class,feed_id,chunk, ))
+            pool.close()
+            pool.join()
+        else:
 
-        for record in gtfs_table:
-            if not record:
-                # Empty row.
-                continue
-
-            chunk_records.append (record)
-            i = i + 1
-
-            if  (i % chunk_size) == 0 :
-                self.process_chunk (gtfs_class,feed_id,chunk_records)    
-                chunk_records = []
-
-        # process pending lines in chunk_records
-        self.process_chunk (gtfs_class,feed_id,chunk_records)    
-        chunk_records = []
+            for chunk in chunks:
+                self.process_chunk (l_session,gtfs_class,feed_id,chunk)
 
         return
 
 
-
     ####################################
-    def append_feed(self, feed_filename, strip_fields=True,
-                    chunk_size=5000, agency_id_override=None, partial_commit=True):
+    def append_feed_id(self, feed_filename, strip_fields=True):
 
         feed_reader = Feed_Reader(feed_filename, strip_fields)
 
         # create new feed
 
-        l_engine = sqlalchemy.create_engine(self.db_connection)
+        l_engine = sqlalchemy.create_engine(self.db_connection, pool_size=20, max_overflow=0 )
+        l_Session = sqlalchemy.orm.sessionmaker(bind=l_engine)
+        l_session = l_Session()
+
+
+        feed_entry = Feed(feed_name=feed_reader.feed_name, feed_append_date=date.today())
+
+        _LOGGER.debug(f"Feed(feed_name={feed_reader.feed_name}, feed_append_date={date.today()})" ) 
+
+
+        l_session.add(feed_entry)
+        l_session.flush()
+        l_session.commit()
+
+        feed_id = feed_entry.feed_id
+
+        return feed_id
+
+
+    ####################################
+    def append_feed(self, feed_filename, strip_fields=True, chunk_size=5000):
+
+        feed_reader = Feed_Reader(feed_filename, strip_fields)
+
+        # create new feed
+
+        l_engine = sqlalchemy.create_engine(self.db_connection, pool_size=20, max_overflow=0 )
         l_Session = sqlalchemy.orm.sessionmaker(bind=l_engine)
         l_session = l_Session()
 
@@ -243,13 +314,8 @@ class Schedule:
 
 #        gtfs_group_0 = [Feed];          #  feed (_feed) is already created
 
-#        gtfs_group_1 = [FeedInfo,Agency,Service,Stop,ShapePoint]
-        gtfs_group_1  = [FeedInfo,Agency,Calendar,Stops]
-
-        gtfs_group_2  = [Routes]
-        gtfs_group_2b = [CalendarDates]
-        gtfs_group_2c = [FareAttributes]
-
+        gtfs_group_1  = [FeedInfo,Agency,Calendar,Stops,Shapes]
+        gtfs_group_2  = [Routes,CalendarDates,FareAttributes]
         gtfs_group_3  = [Trips,FareRules]
         gtfs_group_4  = [StopTimes,Frequencies]
         gtfs_group_5  = [Transfers,Translations]
@@ -257,9 +323,6 @@ class Schedule:
         gtfs_all_groups = [ 
             gtfs_group_1, 
             gtfs_group_2,
-            gtfs_group_2b,
-            gtfs_group_2c,
-
             gtfs_group_3, 
             gtfs_group_4,
             gtfs_group_5 ]
@@ -273,7 +336,18 @@ class Schedule:
             for gtfs in gtfs_group:
 
                 _LOGGER.debug(f" run  {gtfs}" ) 
-                job_import_single_gtfs( self.db_connection, feed_filename, strip_fields , gtfs, feed_id, chunk_size, partial_commit)
+                job_import_single_gtfs( self.db_connection, feed_filename, strip_fields , gtfs, feed_id, chunk_size)
+
+#                self.import_single_gtfs(
+#                    self.db_connection,
+#                    feed_filename,
+#                    strip_fields ,
+#                    gtfs, 
+#                    feed_id, 
+#                    chunk_size, 
+#                    partial_commit)
+
+
 
 #                _LOGGER.debug(f"    add  {gtfs} to pool" ) 
 #                pool.apply_async (
@@ -341,9 +415,9 @@ class Schedule:
 #############################################################
 #############################################################
 
-def job_import_single_gtfs(db_connection, feed_filename, strip_fields, gtfs_class, feed_id, chunk_size, partial_commit):
+def job_import_single_gtfs(db_connection, feed_filename, strip_fields, gtfs_class, feed_id, chunk_size):
     local_schedule = Schedule (db_connection)
-    local_schedule.import_single_gtfs(feed_filename, strip_fields, gtfs_class, feed_id, chunk_size=5000, partial_commit=True)
+    local_schedule.import_single_gtfs(feed_filename, strip_fields, gtfs_class, feed_id, chunk_size)
 
     return
 
@@ -404,26 +478,67 @@ def _meta_query_raw(entity, docstring=None):
 
 def upload_zip_to_db (db_conn_str , filename  ):
 
-    if 1 == 2 :
-            # in foregroud to have debug... but ill fail with time-out :-(
-            sched = Schedule ( db_conn_str)
-            sched.append_feed (
-                feed_filename = filename, 
-                strip_fields=False,
-                chunk_size=1000,
-                agency_id_override=None,
-                partial_commit=True)
-    else:
+    if 1 == 1 :
         if os.fork() != 0:    
             return
-        else:
-            sched = Schedule ( db_conn_str)
-            sched.append_feed (
-                feed_filename = filename, 
-                strip_fields=False,
-                chunk_size=10000,
-                agency_id_override=None,
-                partial_commit=True)
+
+
+    # in foregroud to have debug... but ill fail with time-out :-(
+    sched = Schedule ( db_conn_str)
+    feed_id = sched.append_feed_id (
+        feed_filename = filename, 
+        strip_fields=False)
+
+
+    gtfs_group_1  = [FeedInfo,Agency,Calendar,Stops,Shapes]
+    gtfs_group_2  = [Routes,CalendarDates,FareAttributes]
+    gtfs_group_3  = [Trips,FareRules]
+    gtfs_group_4  = [StopTimes,Frequencies]
+    gtfs_group_5  = [Transfers,Translations]
+
+    gtfs_all_groups = [ 
+        gtfs_group_1, 
+        gtfs_group_2,
+        gtfs_group_3, 
+        gtfs_group_4,
+        gtfs_group_5 ]
+
+    _LOGGER.debug(f"debug: Before processing groups" ) 
+
+
+    for gtfs_group in gtfs_all_groups:
+        _LOGGER.debug(f"debug: BEGIN processing group {gtfs_group}" ) 
+        pool = multiprocessing.Pool(processes=2)
+        for gtfs in gtfs_group:
+            _LOGGER.debug(f" run  {gtfs}" ) 
+
+            pool.apply_async (
+                job_import_single_gtfs, 
+                args=( db_conn_str,
+                    filename, 
+                    False,
+                    gtfs,
+                    feed_id ,
+                    5000,))
+
+        pool.close()
+        pool.join()
+
+#                    sched.import_single_gtfs(
+#                        feed_filename = filename, 
+#                        strip_fields=False,
+#                        gtfs_class = gtfs,
+#                        feed_id= feed_id ,
+#                        chunk_size=5000)
+
+    return
+
+
+    sched = Schedule ( db_conn_str)
+    sched.append_feed (
+        feed_filename = filename, 
+        strip_fields=False,
+        chunk_size=2000)
 
 
     return

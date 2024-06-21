@@ -43,7 +43,7 @@ class gtfs2_pg_Coordinator_Master(DataUpdateCoordinator):
         self.hass = hass
         self.data: dict[str, str] = {}
         self.data["name"] = "master"
-        self.master_engine = sqlalchemy.create_engine(MASTER_CONN_STR, echo=False)
+        self.master_engine = sqlalchemy.create_engine(MASTER_CONN_STR, pool_size=20, max_overflow=5, echo=False) 
 
 #        self.engine = sqlalchemy.create_engine(MASTER_CONN_STR, echo=True)
         conn = self.master_engine.connect()
@@ -115,7 +115,8 @@ class gtfs2_pg_Coordinator_Sensor(DataUpdateCoordinator):
             errors["base"] = f"SQL Error: {e}"
 
         _LOGGER.debug(f"found db_conn_str ={db_conn_str}")
-        self.gtfs_engine = sqlalchemy.create_engine(db_conn_str)
+        self.gtfs_engine = sqlalchemy.create_engine(db_conn_str,pool_size=20, max_overflow=5, echo=False)
+
         db_conn_master.close()
         _LOGGER.debug("gtfs2_pg_Coordinator_Sensor.__init__  END")
 

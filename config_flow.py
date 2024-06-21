@@ -470,16 +470,18 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         return self.async_abort(reason="Feed deletion in progress...")
                     else:
                         table_sequence = [
-                            'trips',
-                            'shapes',
-                            'routes',
                             'stop_times',
-                            'stops',
+                            'trips',
                             'calendar_dates',
+                            'routes',
+                            'shapes',
+                            'stops',
                             'calendar',
                             'agency',
                             'feed_info',
                             '_feed']
+
+
                         l_engine = sqlalchemy.create_engine(feed_selected["db_conn_str"], echo=True)
                         db_conn = l_engine.connect()
 
@@ -493,7 +495,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             except SQLAlchemyError as e:
                                 errors["base"] = f"SQL Error: {e}"
                                 
-                            db_conn.commit()
+                            #db_conn.commit()
                         db_conn.close()
                         return
 
